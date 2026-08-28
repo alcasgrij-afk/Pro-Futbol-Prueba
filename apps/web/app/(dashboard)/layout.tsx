@@ -28,7 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <header className="bg-navy text-white px-6 py-3 flex items-center justify-between">
         <span className="font-bold">Pro Futbol Antigua · Panel Admin</span>
         <button onClick={cerrarSesion} className="text-sm underline underline-offset-2">
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </header>
       <main className="p-6 max-w-5xl mx-auto">{children}</main>
