@@ -88,8 +88,15 @@ export class ChatService {
   // ---------------------------------------------------------------------
   // INICIO -> MENU_CANCHA
   // ---------------------------------------------------------------------
-  private async manejarInicio(sesion: SesionChat, _entrante: Entrante): Promise<ResultadoProcesar> {
+  private async manejarInicio(sesion: SesionChat, entrante: Entrante): Promise<ResultadoProcesar> {
     const canchas = await this.canchasService.listar();
+
+    // Si el primer mensaje ya nombra una cancha ("Cancha 1", "1"), ir directo
+    // a los horarios en vez de ignorarlo y repetir el menu.
+    const canchaDirecto = entrante.texto ? await this.resolverCanchaPorTexto(entrante.texto) : null;
+    if (canchaDirecto) {
+      return this.mostrarDisponibilidad({ ...sesion, estado: BotEstado.MENU_CANCHA }, canchaDirecto);
+    }
 
     const nuevaSesion: SesionChat = { ...sesion, estado: BotEstado.MENU_CANCHA };
 
@@ -110,8 +117,11 @@ export class ChatService {
   // MENU_CANCHA -> MENU_HORARIO
   // ---------------------------------------------------------------------
   private async manejarMenuCancha(sesion: SesionChat, entrante: Entrante): Promise<ResultadoProcesar> {
-    const canchaId = entrante.idSeleccion;
-    const cancha = canchaId ? await this.intentarObtenerCancha(canchaId) : null;
+    // Button tap envia el id; texto libre envia el nombre (o numero). Aceptar ambos.
+    const texto = entrante.texto ?? '';
+    const cancha = entrante.idSeleccion
+      ? (await this.intentarObtenerCancha(entrante.idSeleccion)) ?? (await this.resolverCanchaPorTexto(texto))
+      : await this.resolverCanchaPorTexto(texto);
 
     if (!cancha) {
       return {
@@ -120,6 +130,14 @@ export class ChatService {
       };
     }
 
+    return this.mostrarDisponibilidad(sesion, cancha);
+  }
+
+  // ---------------------------------------------------------------------
+  // Disponibilidad de una cancha -> lista de horarios (o re-elegis cancha).
+  // Compartido por MENU_CANCHA y por el atajo directo desde INICIO.
+  // ---------------------------------------------------------------------
+  private async mostrarDisponibilidad(sesion: SesionChat, cancha: { id: string; nombre: string }): Promise<ResultadoProcesar> {
     const hoy = new Date().toISOString().slice(0, 10);
     const disponibilidad = await this.canchasService.disponibilidad(cancha.id, hoy);
     const bloquesLibres = disponibilidad.bloques.filter((b) => b.disponible);
@@ -382,6 +400,47 @@ export class ChatService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Resuelve una cancha a partir de texto libre: nombre exacto, "cancha 1",
+   * el numero solo ("1") o fragmentos del nombre ("futbol 5"). Normaliza
+   * mayusculas, espacios y acentos antes de comparar. `ponytail:` si una
+   * entrada coincide con varias canchas (ej. dos "Cancha 1" en sedes
+   * distintas) toma la primera; pedir confirmacion explicita si eso ocurre.
+   */
+  private async resolverCanchaPorTexto(texto: string) {
+    const candidato = this.normalizar(texto);
+    if (!candidato) return null;
+
+    const canchas = await this.canchasService.listar();
+    const numero = candidato.match(/(?:cancha\s+)?(\d{1,2})/)?.[1];
+
+    const exacta = canchas.find((c) => this.normalizar(c.nombre) === candidato);
+    if (exacta) return exacta;
+
+    if (numero) {
+      // \b: "cancha 1" no debe matchear "cancha 10 - Futbol 11".
+      const porNumero = canchas.find((c) => new RegExp(`cancha\\s+${numero}\\b`).test(this.normalizar(c.nombre)));
+      if (porNumero) return porNumero;
+    }
+
+    const porPrefijo = canchas.find((c) => this.normalizar(c.nombre).startsWith(candidato));
+    if (porPrefijo) return porPrefijo;
+
+    const porContiene = canchas.find((c) => this.normalizar(c.nombre).includes(candidato));
+    if (porContiene) return porContiene;
+
+    return null;
+  }
+
+  private normalizar(texto: string): string {
+    return texto
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '') // quita acentos ("Fútbol" -> "futbol")
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private esCancelacion(texto: string): boolean {

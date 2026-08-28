@@ -75,6 +75,23 @@ describe('ChatService (maquina de estados)', () => {
     expect(mensajes[0].tipo).toBe('lista');
   });
 
+  it('MENU_CANCHA acepta texto libre con el nombre de la cancha', async () => {
+    await enviar('hola');
+    const mensajes = await enviar('futbol 5');
+    const sesion = sesiones.get(SESSION_ID)!;
+    expect(sesion.estado).toBe(BotEstado.MENU_HORARIO);
+    expect(sesion.canchaId).toBe(cancha.id);
+    expect(mensajes[0].tipo).toBe('lista');
+  });
+
+  it('INICIO salta directo a horarios si el primer mensaje nombra la cancha', async () => {
+    const mensajes = await enviar('futbol 5');
+    const sesion = sesiones.get(SESSION_ID)!;
+    expect(sesion.estado).toBe(BotEstado.MENU_HORARIO);
+    expect(sesion.canchaId).toBe(cancha.id);
+    expect(mensajes[0].tipo).toBe('lista');
+  });
+
   it('MENU_HORARIO -> CONFIRMA_PRECIO al elegir un horario disponible', async () => {
     await enviar('hola');
     await enviar(cancha.id);
