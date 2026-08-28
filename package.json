@@ -8,8 +8,12 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "concurrently -k -n api,web --prefix-colors cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run start:dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
+    "setup": "npm run setup:docker && npm run prisma:migrate -- --name fase1_v2_chat_pagos && npm run prisma:seed",
+    "setup:docker": "docker compose up -d",
+    "stop": "docker compose stop",
     "build": "npm run build -w packages/shared-types && npm run build -w apps/api && npm run build -w apps/web",
     "build:api": "npm run build -w packages/shared-types && npm run build -w apps/api",
     "build:web": "npm run build -w packages/shared-types && npm run build -w apps/web",
@@ -22,6 +26,7 @@
     "prepare": "husky install || true"
   },
   "devDependencies": {
+    "concurrently": "^9.2.4",
     "husky": "^9.0.11",
     "lint-staged": "^15.2.7",
     "prettier": "^3.3.2"
@@ -29,7 +34,7 @@
   "engines": {
     "node": ">=20.0.0"
   },
-   "dependencies": {
+  "dependencies": {
     "bcrypt": "^5.1.1"
   }
 }
