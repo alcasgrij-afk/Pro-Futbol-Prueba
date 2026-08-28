@@ -1,0 +1,55 @@
+version: "3.9"
+
+# Entorno de desarrollo local: Postgres + Redis.
+# La API y el Web NO corren aqui adentro durante desarrollo (se corren con
+# `npm run dev:api` / `npm run dev:web` para tener hot-reload rapido).
+# Ver docker-compose.prod.yml (Fase 1, Sprint 4) para el stack de produccion.
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: profutbol-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: profutbol
+      POSTGRES_PASSWORD: profutbol_dev_password
+      POSTGRES_DB: profutbol_antigua
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U profutbol"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: profutbol-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Interfaz web opcional para inspeccionar Redis durante desarrollo.
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: profutbol-redis-ui
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+  redis_data:

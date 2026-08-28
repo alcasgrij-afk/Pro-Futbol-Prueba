@@ -1,0 +1,60 @@
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
+import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+    logger: ['error', 'warn', 'log', process.env.NODE_ENV !== 'production' ? 'debug' : 'log'],
+  });
+
+  // --- Seguridad basica de cabeceras HTTP ---
+  app.use(helmet());
+
+  // --- CORS: solo el panel admin / sitio web deben poder llamar la API ---
+  app.enableCors({
+    origin: (process.env.WEB_URL ?? 'http://localhost:3000').split(','),
+    credentials: true,
+  });
+
+  // --- Validacion global de entrada ---
+  // whitelist + forbidNonWhitelisted: cualquier campo no declarado en el DTO
+  // se rechaza en vez de ignorarse silenciosamente (ver Plan Tecnico, sec. 8).
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+  // Nota: rutas versionless (sin prefijo /v1). El frontend (rewrite /api/*),
+  // el widget y el README asumen este esquema; mantenerlo asi.
+
+  // --- Documentacion OpenAPI/Swagger ---
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Pro Futbol Antigua - API')
+      .setDescription('Reservas, pagos, chatbot web y panel administrativo (Fase 1)')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
+
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+  await app.listen(port);
+  // eslint-disable-next-line no-console
+  console.log(`API escuchando en http://localhost:${port}`);
+  // eslint-disable-next-line no-console
+  console.log(`Documentacion Swagger en http://localhost:${port}/api/docs`);
+}
+bootstrap();

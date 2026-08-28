@@ -1,0 +1,35 @@
+{
+  "name": "profutbol-antigua",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sistema de Reservas, Pagos y Gestion Deportiva - Pro Futbol Antigua",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build": "npm run build -w packages/shared-types && npm run build -w apps/api && npm run build -w apps/web",
+    "build:api": "npm run build -w packages/shared-types && npm run build -w apps/api",
+    "build:web": "npm run build -w packages/shared-types && npm run build -w apps/web",
+    "test": "npm run test -w apps/api",
+    "test:cov": "npm run test:cov -w apps/api",
+    "lint": "npm run lint -w apps/api && npm run lint -w apps/web",
+    "prisma:generate": "npm run prisma:generate -w apps/api",
+    "prisma:migrate": "npm run prisma:migrate -w apps/api",
+    "prisma:seed": "npm run prisma:seed -w apps/api",
+    "prepare": "husky install || true"
+  },
+  "devDependencies": {
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.7",
+    "prettier": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+   "dependencies": {
+    "bcrypt": "^5.1.1"
+  }
+}

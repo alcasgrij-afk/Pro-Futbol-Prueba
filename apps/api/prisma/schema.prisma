@@ -1,0 +1,161 @@
+// =============================================================================
+// Esquema de base de datos - Fase 1 (MVP)
+// Entidades: Usuario (panel admin), Cliente, Cancha, Reserva.
+// Las entidades de Pago, Torneo, Academia se agregan en migraciones de
+// fases posteriores (ver Plan de Desarrollo Tecnico, seccion 4).
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum TipoCancha {
+  FUTBOL_5
+  FUTBOL_7
+}
+
+enum EstadoReserva {
+  PENDIENTE_PAGO
+  PENDIENTE_SEDE
+  CONFIRMADA
+  LIBERADA
+  CANCELADA
+}
+
+enum FormaPago {
+  ANTICIPADO_EN_LINEA
+  EN_SEDE
+}
+
+enum RolUsuario {
+  ADMIN
+  RECEPCION
+  ENTRENADOR
+}
+
+enum GatewayPago {
+  BAC
+  NEONET
+  EFECTIVO
+}
+
+enum EstadoPago {
+  PENDIENTE
+  COMPLETADO
+  FALLIDO
+  CANCELADO
+}
+
+enum TipoPagoReferencia {
+  RESERVA
+}
+
+// ---------- Modelos ----------
+
+/// Personal interno con acceso al panel administrativo.
+model Usuario {
+  id           String     @id @default(uuid())
+  nombre       String
+  email        String     @unique
+  passwordHash String
+  rol          RolUsuario @default(RECEPCION)
+  activo       Boolean    @default(true)
+  creadoEn     DateTime   @default(now())
+  actualizadoEn DateTime  @updatedAt
+
+  @@map("usuarios")
+}
+
+/// Clientes finales que reservan cancha (identificados por telefono, no
+/// requieren cuenta/contraseña: interactuan via WhatsApp o el sitio web).
+model Cliente {
+  id        String    @id @default(uuid())
+  nombre    String
+  telefono  String    @unique
+  email     String?
+  creadoEn  DateTime  @default(now())
+  reservas  Reserva[]
+
+  @@map("clientes")
+}
+
+model Cancha {
+  id               String     @id @default(uuid())
+  nombre           String
+  tipo             TipoCancha
+  precioAnticipadoQ Decimal   @db.Decimal(10, 2)
+  precioSedeQ       Decimal   @db.Decimal(10, 2)
+  horaAperturaMin   Int       // minutos desde medianoche, ej. 8:00 = 480
+  horaCierreMin     Int       // ej. 22:00 = 1320
+  duracionBloqueMin Int       @default(60)
+  activa            Boolean   @default(true)
+  creadoEn          DateTime  @default(now())
+  reservas          Reserva[]
+
+  @@map("canchas")
+}
+
+model Reserva {
+  id            String        @id @default(uuid())
+  cancha        Cancha        @relation(fields: [canchaId], references: [id])
+  canchaId      String
+  cliente       Cliente       @relation(fields: [clienteId], references: [id])
+  clienteId     String
+  fecha         DateTime      @db.Date
+  horaInicioMin Int           // minutos desde medianoche
+  horaFinMin    Int
+  estado        EstadoReserva @default(PENDIENTE_PAGO)
+  formaPago     FormaPago
+  precioTotalQ  Decimal       @db.Decimal(10, 2)
+  linkPago      String?       // compat: flujo manual v1, en desuso tras la migracion
+  referenciaPago String?      // compat: en desuso, reemplazado por la relacion Pago
+  pagos         Pago[]
+  expiraEn      DateTime?     // cuando se libera si no hay pago (usado por el job)
+  creadoEn      DateTime      @default(now())
+  actualizadoEn DateTime      @updatedAt
+
+  // NOTA IMPORTANTE sobre concurrencia:
+  // A proposito NO se declara un @@unique sobre (canchaId, fecha, horaInicioMin)
+  // aqui, porque eso impediria volver a reservar un horario despues de que
+  // una reserva anterior en ese mismo horario fue CANCELADA o LIBERADA.
+  // La proteccion contra dobles reservas activas se hace en dos capas:
+  //   1) Lock distribuido en Redis (SETNX) al momento de crear la reserva
+  //      (ver ReservasService.crearReserva) - primera linea de defensa, rapida.
+  //   2) Verificacion dentro de una transaccion de Prisma que revisa si ya
+  //      existe una reserva ACTIVA (CONFIRMADA/PENDIENTE_PAGO/PENDIENTE_SEDE)
+  //      en ese mismo horario antes de insertar - segunda linea de defensa,
+  //      cubre el caso borde de que el lock de Redis haya expirado.
+  // Endurecimiento recomendado para produccion (Fase 2): agregar un indice
+  // unico PARCIAL vía SQL crudo en una migracion de Prisma, por ejemplo:
+  //   CREATE UNIQUE INDEX reservas_horario_activo_unico ON reservas
+  //     (cancha_id, fecha, hora_inicio_min)
+  //     WHERE estado IN ('CONFIRMADA','PENDIENTE_PAGO','PENDIENTE_SEDE');
+  // Prisma no expresa indices parciales en el schema; se agrega editando el
+  // archivo migration.sql generado por `prisma migrate dev`.
+  @@index([fecha, canchaId])
+  @@index([estado])
+  @@map("reservas")
+}
+
+model Pago {
+  id               String             @id @default(uuid())
+  reserva          Reserva            @relation(fields: [reservaId], references: [id])
+  reservaId        String
+  gateway          GatewayPago
+  montoQ           Decimal            @db.Decimal(10, 2)
+  estado           EstadoPago         @default(PENDIENTE)
+  referenciaExterna String?
+  redirectUrl      String?
+  confirmadoEn     DateTime?
+  creadoEn         DateTime           @default(now())
+
+  @@index([reservaId])
+  @@map("pagos")
+}
