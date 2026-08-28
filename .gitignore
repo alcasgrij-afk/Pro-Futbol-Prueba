@@ -10,3 +10,6 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 .turbo/
+
+# graphify generated graph
+graphify-out/
