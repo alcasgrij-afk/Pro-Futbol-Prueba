@@ -41,7 +41,7 @@ export class ChatService {
   ) {}
 
   async procesar(sessionId: string, texto: string): Promise<MensajeSaliente[]> {
-    let sesion = (await this.sesiones.obtener(sessionId)) ?? sesionInicial(sessionId);
+    const sesion = (await this.sesiones.obtener(sessionId)) ?? sesionInicial(sessionId);
     const entrante: Entrante = { texto, idSeleccion: texto };
 
     const { sesion: actualizada, mensajes } = await this.procesarEntrada(sesion, entrante);
@@ -63,7 +63,7 @@ export class ChatService {
     }
 
     if (entrante.texto && this.esCancelacion(entrante.texto) && sesion.estado !== BotEstado.INICIO) {
-      return this.cancelar(sesion, entrante);
+      return this.cancelar(sesion);
     }
 
     switch (sesion.estado) {
@@ -372,7 +372,7 @@ export class ChatService {
   }
 
   // ---------------------------------------------------------------------
-  private async cancelar(sesion: SesionChat, entrante: Entrante): Promise<ResultadoProcesar> {
+  private async cancelar(sesion: SesionChat): Promise<ResultadoProcesar> {
     if (sesion.reservaId) {
       await this.reservasService.cancelar(sesion.reservaId);
     }

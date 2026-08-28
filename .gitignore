@@ -13,3 +13,7 @@ coverage/
 
 # graphify generated graph
 graphify-out/
+
+# Prisma seed compilado (artefacto de tsc/ts-node)
+apps/api/prisma/seed.js
+apps/api/prisma/seed.js.map

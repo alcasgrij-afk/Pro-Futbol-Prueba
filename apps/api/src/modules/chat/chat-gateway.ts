@@ -9,7 +9,6 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { randomUUID } from 'crypto';
-import { MensajeSaliente } from '@profutbol/shared-types';
 import { ChatService } from './chat.service';
 
 const LIMITE_MSJ_POR_SESION = 10; // por minuto
