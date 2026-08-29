@@ -5,11 +5,24 @@ import { ReservasService } from './reservas.service';
 import { CrearReservaDto } from './dto/crear-reserva.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { minutosAHora } from '../canchas/disponibilidad.util';
 
 @ApiTags('reservas')
 @Controller('reservas')
 export class ReservasController {
   constructor(private readonly reservasService: ReservasService) {}
+
+  // La entidad guarda el horario en minutos; el contrato ReservaDTO expone
+  // horaInicio/horaFin como "HH:MM". aDTO alinea la respuesta con el contrato
+  // (conserva los minutos tambien por compatibilidad).
+  private aDTO(r: any) {
+    if (!r) return r;
+    return {
+      ...r,
+      horaInicio: minutosAHora(Number(r.horaInicioMin)),
+      horaFin: minutosAHora(Number(r.horaFinMin)),
+    };
+  }
 
   // Publico: usado por el sitio web (el bot llama al service directamente).
   @Public()
@@ -22,14 +35,15 @@ export class ReservasController {
   @Public()
   @Get(':id')
   obtener(@Param('id') id: string) {
-    return this.reservasService.obtenerPorId(id);
+    return this.reservasService.obtenerPorId(id).then((r) => this.aDTO(r));
   }
 
   @ApiBearerAuth()
   @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
   @Get()
-  listar(@Query('fecha') fecha?: string, @Query('estado') estado?: EstadoReserva) {
-    return this.reservasService.listar({ fecha, estado });
+  async listar(@Query('fecha') fecha?: string, @Query('estado') estado?: EstadoReserva) {
+    const rs = await this.reservasService.listar({ fecha, estado });
+    return rs.map((r) => this.aDTO(r));
   }
 
   @ApiBearerAuth()
