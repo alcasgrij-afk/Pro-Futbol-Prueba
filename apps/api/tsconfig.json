@@ -25,5 +25,6 @@
     "paths": {
       "@profutbol/shared-types": ["../../packages/shared-types/src"]
   }
-}
+},
+"include": ["src/**/*", "../../packages/shared-types/src/**/*"]
 }
