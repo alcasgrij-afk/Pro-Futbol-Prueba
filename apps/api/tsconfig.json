@@ -19,12 +19,7 @@
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "allowJs":true,
-
-    // Add this paths block to safeguard local imports if the workspace linking hits a snag
-    "paths": {
-      "@profutbol/shared-types": ["../../packages/shared-types/src"]
-  }
-},
-"include": ["src/**/*", "../../packages/shared-types/src/**/*"]
+    "allowJs": true
+  },
+  "include": ["src/**/*"]
 }
