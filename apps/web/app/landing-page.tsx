@@ -185,7 +185,7 @@ export default function LandingPage() {
                         <svg className="w-4 h-4 stroke-[#1668c9] shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="2">
                           <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
                         </svg>
-                        TamaÃ±o: {cancha.tamaÃ±o}
+                        Dimensiones: {cancha.tamano}
                       </div>
                     </div>
                     <Link
@@ -407,4 +407,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
 
