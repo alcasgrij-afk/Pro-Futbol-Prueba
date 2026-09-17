@@ -67,12 +67,12 @@ export default function AdminHomePage() {
 
       <div className="space-y-4">
         {MODULOS.map((m) => {
-          const colors = COLOR_CLASSES[m.color];
+          const colors = COLOR_CLASSES[m.color as keyof COLOR_CLASSES];
           return (
             <Link
               key={m.href}
               href={m.href}
-              className={`block w-full bg-white rounded-lg shadow-sm ${colors.border} p-5 hover:${colors.hover} hover:shadow-md transition flex items-center justify-between`}
+              className={`block w-full bg-white rounded-lg shadow-sm ${colors.border} p-5 ${colors.hover} hover:shadow-md transition flex items-center justify-between`}
             >
               <div className="flex-1">
                 <span className={`font-semibold ${colors.text} text-lg`}>{m.t}</span>
@@ -95,7 +95,7 @@ export default function AdminHomePage() {
               <Link
                 key={a.href}
                 href={a.href}
-                className={`block w-full text-left rounded-full px-4 py-2 ${colors.border} text-xs font-medium ${colors.text} hover:bg-[${colors.bg.slice(5)}]/10 hover:text-[${colors.text.slice(5)}] hover:border-[${colors.border.slice(7)}] transition`}
+                className={`block w-full text-left rounded-full px-4 py-2 border ${colors.border} text-xs font-medium ${colors.text} ${colors.hover} transition`}
               >
                 {a.t}
               </Link>

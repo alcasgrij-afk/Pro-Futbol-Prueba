@@ -61,13 +61,9 @@ async function request<T>(path: string, opciones: RequestInit = {}): Promise<T> 
   return respuesta.json();
 }
 
-const API_BASE_URL = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_API_URL
-  ? process.env.NEXT_PUBLIC_API_URL
-  : '';
-
 export const api = {
   login: (email: string, password: string) =>
-    request<LoginResponse>(`${API_BASE_URL}/auth/login`, { method: 'POST', body: JSON.stringify({ email, password }) }),
+    request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
   listarReservas: (filtros: { fecha?: string; estado?: string } = {}) => {
     const params = new URLSearchParams(filtros as Record<string, string>);
