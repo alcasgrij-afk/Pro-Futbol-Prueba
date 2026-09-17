@@ -162,8 +162,8 @@ export default function LandingPage() {
 
             <div className="grid md:grid-cols-2 gap-7">
               {[
-                { title: 'Cancha 5 vs 5', img: '/action.jpg', capacidad: '10 jugadores', tamaÃ±o: '30 Ã— 20 m' },
-                { title: 'Cancha 7 vs 7', img: '/field.jpg', capacidad: '14 jugadores', tamaÃ±o: '50 Ã— 30 m' }
+                { title: 'Cancha 5 vs 5', img: '/action.jpg', capacidad: '10 jugadores', tamano: '30x20 m' },
+                { title: 'Cancha 7 vs 7', img: '/field.jpg', capacidad: '14 jugadores', tamano: '50x30 m' }
               ].map((cancha, i) => (
                 <div key={i} className="bg-white rounded-[22px] overflow-hidden shadow-[0_10px_30px_rgba(15,60,130,.08)]">
                   <div className="relative h-48">
@@ -407,3 +407,4 @@ export default function LandingPage() {
     </div>
   );
 }
+
