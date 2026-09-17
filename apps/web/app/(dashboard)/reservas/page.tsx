@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { EstadoReserva, FormaPago, ReservaDTO } from '@profutbol/shared-types';
 import { api, ApiError } from '../../../lib/api-client';
+import { hoyISOAnios } from '../../../lib/fechas';
+import ConfirmarModal from '../../../components/ConfirmarModal';
+import Skeleton from '../../../components/Skeleton';
 
 // --- Etiquetas de estado (GT) ---
 const ETIQUETAS_ESTADO: Record<string, { texto: string; clase: string }> = {
@@ -20,7 +23,10 @@ const ETIQUETAS_FORMA: Record<string, string> = {
 };
 
 function hoyISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Fecha local GT (no UTC): toISOString() corre "hoy" un dia adelante entre
+  // las 18:00 y 23:59 y el dashboard mostraria el dia de manana (vacio).
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // --- Tarjetas de resumen ---
@@ -42,49 +48,6 @@ const FILTROS: { key: string; etiqueta: string }[] = [
   { key: EstadoReserva.LIBERADA, etiqueta: 'Liberadas' },
   { key: EstadoReserva.CANCELADA, etiqueta: 'Canceladas' },
 ];
-
-// --- Modal de confirmacion inline ---
-function ConfirmarModal({
-  titulo,
-  mensaje,
-  onConfirmar,
-  onCancelar,
-  cargando,
-}: {
-  titulo: string;
-  mensaje: string;
-  onConfirmar: () => void;
-  onCancelar: () => void;
-  cargando: boolean;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-3">
-        <h2 className="text-base font-bold text-navy">{titulo}</h2>
-        <p className="text-sm text-gray-600">{mensaje}</p>
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onCancelar}
-            disabled={cargando}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirmar}
-            disabled={cargando}
-            className="px-3 py-1.5 text-sm font-medium text-white bg-navy rounded-md hover:bg-navy/90 disabled:opacity-50 flex items-center gap-2"
-          >
-            {cargando && (
-              <span className="inline-block h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            )}
-            Confirmar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // --- Pagina principal ---
 export default function ReservasPage() {
@@ -119,6 +82,23 @@ export default function ReservasPage() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Refresco silencioso: no muestra el spinner "Cargando..." para no
+  // parpadear la tabla. Reservas PENDIENTE_PAGO expiradas se liberan
+  // server-side (BullMQ); sin esto el dashboard queda con filas viejas.
+  const refrescar = useCallback(async () => {
+    try {
+      const datos = await api.listarReservas({ fecha });
+      setReservas(datos);
+    } catch {
+      /* silencioso: el fetch manual (cargar) es el que reporta errores */
+    }
+  }, [fecha]);
+
+  useEffect(() => {
+    const id = setInterval(refrescar, 30_000);
+    return () => clearInterval(id);
+  }, [refrescar]);
 
   // --- Estadisticas (derivadas del listado completo del dia) ---
   const stats = useMemo(() => {
@@ -160,7 +140,11 @@ export default function ReservasPage() {
       setModal(null);
       await cargar();
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Ocurrio un error. Intenta de nuevo.');
+      setError(err instanceof ApiError ? err.message : 'Ocurrio un error. Intenta de nuevo.');
+      // La reserva pudo haberse liberado/confirmado en otro lado: cerrar el
+      // modal y refrescar para que la fila refleje el estado real.
+      setModal(null);
+      await refrescar();
     } finally {
       setAccionCargando(false);
     }
@@ -175,9 +159,13 @@ export default function ReservasPage() {
         <h1 className="text-lg font-bold text-navy">Reservas del dia</h1>
         <input
           type="date"
+          aria-label="Fecha de reservas"
           value={fecha}
+          min={hoyISOAnios(-60)}
+          max={hoyISOAnios(20)}
           onChange={(e) => setFecha(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          suppressHydrationWarning
+          className="min-h-11 rounded-md border border-gray-500 px-3 text-sm"
         />
       </div>
 
@@ -202,7 +190,8 @@ export default function ReservasPage() {
             <button
               key={f.key}
               onClick={() => setFiltroEstado(f.key)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition ${
+              aria-pressed={activo}
+              className={`min-h-11 px-3 py-1.5 text-xs font-semibold rounded-full border transition ${
                 activo
                   ? 'bg-navy text-white border-navy'
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
@@ -220,7 +209,34 @@ export default function ReservasPage() {
 
       {/* --- Tabla de reservas --- */}
       {cargando ? (
-        <p className="text-sm text-gray-500">Cargando reservas...</p>
+        <div className="overflow-x-auto bg-white rounded-lg shadow-sm" aria-busy="true">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
+                <th className="px-4 py-2">Horario</th>
+                <th className="px-4 py-2">Cancha</th>
+                <th className="px-4 py-2">Cliente</th>
+                <th className="px-4 py-2">Pago</th>
+                <th className="px-4 py-2">Monto</th>
+                <th className="px-4 py-2">Estado</th>
+                <th className="px-4 py-2">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="border-b last:border-0">
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-14" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
+                  <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : reservasFiltradas.length === 0 ? (
         <p className="text-sm text-gray-500">
           No hay reservas {filtroEstado !== 'TODAS' ? `con estado "${ETIQUETAS_ESTADO[filtroEstado]?.texto ?? filtroEstado}"` : ''} para esta fecha.
@@ -253,7 +269,7 @@ export default function ReservasPage() {
                     <td className="px-4 py-2">{r.cancha?.nombre ?? '—'}</td>
                     <td className="px-4 py-2">
                       <div className="font-medium">{r.cliente?.nombre ?? '—'}</div>
-                      <div className="text-xs text-gray-400">{r.cliente?.telefono}</div>
+                      <div className="text-xs text-gray-600">{r.cliente?.telefono}</div>
                     </td>
                     <td className="px-4 py-2">
                       <span className="text-xs text-gray-500">{ETIQUETAS_FORMA[r.formaPago] ?? r.formaPago}</span>
@@ -269,13 +285,13 @@ export default function ReservasPage() {
                         <>
                           <button
                             onClick={() => setModal({ tipo: 'confirmar', reserva: r })}
-                            className="text-xs font-semibold text-white bg-navy rounded px-2.5 py-1 hover:bg-navy/80 transition"
+                            className="text-xs font-semibold text-white bg-navy rounded px-2.5 py-1 hover:bg-navy/80 transition active:scale-[0.98] min-h-11"
                           >
                             Confirmar
                           </button>
                           <button
                             onClick={() => setModal({ tipo: 'cancelar', reserva: r })}
-                            className="text-xs font-semibold text-red-600 border border-red-300 rounded px-2.5 py-1 hover:bg-red-50 transition"
+                            className="text-xs font-semibold text-red-600 border border-red-300 rounded px-2.5 py-1 hover:bg-red-50 transition active:scale-[0.98] min-h-11"
                           >
                             Cancelar
                           </button>
@@ -306,6 +322,7 @@ export default function ReservasPage() {
           onConfirmar={ejecutarAccion}
           onCancelar={() => setModal(null)}
           cargando={accionCargando}
+          variante={modal.tipo === 'cancelar' ? 'peligro' : 'primario'}
         />
       )}
     </div>

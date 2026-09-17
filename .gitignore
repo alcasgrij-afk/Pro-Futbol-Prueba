@@ -17,3 +17,23 @@ graphify-out/
 # Prisma seed compilado (artefacto de tsc/ts-node)
 apps/api/prisma/seed.js
 apps/api/prisma/seed.js.map
+# Environment variables
+.env
+.env.*
+
+# Dependencies
+node_modules/
+dist/
+.build/
+.next/
+out/
+
+# Production builds
+apps/api/dist/
+apps/web/.next/
+apps/web/out/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log

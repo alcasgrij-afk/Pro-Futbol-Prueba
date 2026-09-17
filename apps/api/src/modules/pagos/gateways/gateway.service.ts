@@ -41,6 +41,9 @@ export class GatewayService {
       case GatewayPago.EFECTIVO:
         // Efectivo nunca tiene pasarela: el pago se confirma en sede.
         throw new Error('El gateway EFECTIVO no genera redireccion de pago.');
+      case GatewayPago.SIMULADO:
+        // Dev explicito: siempre simula, sin depender de credenciales.
+        return this.simulada(input);
       default:
         throw new Error(`Gateway no soportado: ${gateway}`);
     }

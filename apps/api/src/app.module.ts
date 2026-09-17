@@ -11,6 +11,9 @@ import { ClientesModule } from './modules/clientes/clientes.module';
 import { ReservasModule } from './modules/reservas/reservas.module';
 import { PagosModule } from './modules/pagos/pagos.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { TorneosModule } from './modules/torneos/torneos.module';
+import { AcademiaModule } from './modules/academia/academia.module';
+import { ReportesModule } from './modules/reportes/reportes.module';
 import { AppController } from './app.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -31,6 +34,9 @@ import { RolesGuard } from './common/guards/roles.guard';
     ReservasModule,
     PagosModule,
     ChatModule,
+    TorneosModule,
+    AcademiaModule,
+    ReportesModule,
   ],
   controllers: [AppController],
   providers: [

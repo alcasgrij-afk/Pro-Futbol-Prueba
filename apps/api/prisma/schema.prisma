@@ -44,6 +44,7 @@ enum GatewayPago {
   BAC
   NEONET
   EFECTIVO
+  SIMULADO
 }
 
 enum EstadoPago {
@@ -55,20 +56,37 @@ enum EstadoPago {
 
 enum TipoPagoReferencia {
   RESERVA
+  EQUIPO
+  MENSUALIDAD
+}
+
+enum FormatoTorneo {
+  LIGA
+  ELIMINACION_DIRECTA
+}
+
+enum EstadoTorneo {
+  PROXIMO
+  INSCRIPCIONES_ABIERTAS
+  EN_CURSO
+  FINALIZADO
+  CANCELADO
 }
 
 // ---------- Modelos ----------
 
 /// Personal interno con acceso al panel administrativo.
 model Usuario {
-  id           String     @id @default(uuid())
-  nombre       String
-  email        String     @unique
-  passwordHash String
-  rol          RolUsuario @default(RECEPCION)
-  activo       Boolean    @default(true)
-  creadoEn     DateTime   @default(now())
-  actualizadoEn DateTime  @updatedAt
+  id              String      @id @default(uuid())
+  nombre          String
+  email           String      @unique
+  passwordHash    String
+  rol             RolUsuario  @default(RECEPCION)
+  activo          Boolean     @default(true)
+  intentosFallidos Int        @default(0)
+  bloqueadoHasta  DateTime?
+  creadoEn        DateTime    @default(now())
+  actualizadoEn   DateTime    @updatedAt
 
   @@map("usuarios")
 }
@@ -144,18 +162,138 @@ model Reserva {
   @@map("reservas")
 }
 
+// Pago con referencia polimorfica: apunta a una reserva (tipoReferencia=RESERVA)
+// o a un equipo de torneo (tipoReferencia=EQUIPO, cuota de inscripcion) a traves
+// de referenciaId. reservaId conserva el FK a Reserva (solo para RESERVA) para no
+// romper las consultas existentes; para EQUIPO queda null.
 model Pago {
-  id               String             @id @default(uuid())
-  reserva          Reserva            @relation(fields: [reservaId], references: [id])
-  reservaId        String
-  gateway          GatewayPago
-  montoQ           Decimal            @db.Decimal(10, 2)
-  estado           EstadoPago         @default(PENDIENTE)
+  id                String             @id @default(uuid())
+  tipoReferencia    TipoPagoReferencia @default(RESERVA)
+  referenciaId      String             // id de la reserva o del equipo, segun tipoReferencia
+  reserva           Reserva?           @relation(fields: [reservaId], references: [id], onDelete: SetNull)
+  reservaId         String?
+  gateway           GatewayPago
+  montoQ            Decimal            @db.Decimal(10, 2)
+  estado            EstadoPago         @default(PENDIENTE)
   referenciaExterna String?
   redirectUrl      String?
   confirmadoEn     DateTime?
   creadoEn         DateTime           @default(now())
 
-  @@index([reservaId])
+  @@index([tipoReferencia, referenciaId])
   @@map("pagos")
+}
+
+// ---------- Torneos (Fase 3) ----------
+
+model Torneo {
+  id                    String        @id @default(uuid())
+  nombre                String
+  descripcion           String?
+  formato               FormatoTorneo
+  categoria             String?
+  maxEquipos            Int           @default(16)
+  cuotaInscripcionQ     Decimal       @default(0) @db.Decimal(10, 2) // Q0 = sin cobro
+  fechaInicio           DateTime?     @db.Date
+  fechaLimiteInscripcion DateTime?    @db.Date
+  estado                EstadoTorneo  @default(INSCRIPCIONES_ABIERTAS)
+  equipos               Equipo[]
+  partidos              Partido[]
+  creadoEn              DateTime      @default(now())
+  actualizadoEn         DateTime      @updatedAt
+
+  @@map("torneos")
+}
+
+model Equipo {
+  id              String   @id @default(uuid())
+  torneoId        String
+  torneo          Torneo   @relation(fields: [torneoId], references: [id], onDelete: Cascade)
+  nombre          String
+  capitanNombre   String?
+  capitanTelefono String?
+  jugadores       Json? // lista de nombres/posiciones
+  partidosLocal   Partido[] @relation("PartidoLocal")
+  partidosVisitante Partido[] @relation("PartidoVisitante")
+  penalesGanadorPartidos Partido[] @relation("PartidoPenalGanador")
+  creadoEn        DateTime @default(now())
+
+  @@unique([torneoId, nombre])
+  @@map("equipos")
+}
+
+model Partido {
+  id             String   @id @default(uuid())
+  torneoId       String
+  torneo         Torneo   @relation(fields: [torneoId], references: [id], onDelete: Cascade)
+  jornada        Int
+  ronda          Int? // solo para ELIMINACION_DIRECTA
+  posicion       Int      @default(0) // slot dentro de su ronda (0-based); el orden por creadoEn no es determinista dentro de createMany
+  localId        String?
+  local          Equipo?  @relation("PartidoLocal", fields: [localId], references: [id], onDelete: SetNull)
+  visitanteId    String?
+  visitante      Equipo?  @relation("PartidoVisitante", fields: [visitanteId], references: [id], onDelete: SetNull)
+  golesLocal     Int?
+  golesVisitante Int?
+  penalesGanadorId String?
+  penalesGanador Equipo?  @relation("PartidoPenalGanador", fields: [penalesGanadorId], references: [id], onDelete: SetNull)
+  fechaJuego     DateTime? @db.Date
+  creadoEn       DateTime @default(now())
+
+  @@map("partidos")
+}
+
+// ---------- Academia (Fase 4) ----------
+
+/// Alumno de la academia de futbol. La categoria se sugiere automaticamente
+/// por edad (categoria.util.ts) pero el admin puede sobrescribirla.
+model Alumno {
+  id                String        @id @default(uuid())
+  nombre            String
+  fechaNacimiento   DateTime      @db.Date
+  categoria         String        // ej. "Sub-10" — sugerida por edad, editable
+  encargadoNombre   String
+  encargadoTelefono String
+  activo            Boolean       @default(true)
+  mensualidades     AcademiaMensualidad[]
+  asistencias       Asistencia[]
+  creadoEn          DateTime      @default(now())
+
+  @@index([categoria])
+  @@map("alumnos")
+}
+
+/// Cobro de un mes especifico para un alumno. El ESTADO del pago
+/// (pagada/pendiente) no vive aqui: se consulta la tabla Pago
+/// (tipoReferencia = MENSUALIDAD, referenciaId = este id), igual que las
+/// cuotas de equipo en la Fase 3.
+model AcademiaMensualidad {
+  id                  String   @id @default(uuid())
+  alumno              Alumno   @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  alumnoId            String
+  mes                 Int      // 1-12
+  anio                Int
+  montoQ              Decimal  @db.Decimal(10, 2)
+  // Evita reenviar el aviso de mora todos los dias mientras siga sin pagar
+  // (ver AcademiaNotificacionesScanner).
+  avisoVencidoEnviado Boolean  @default(false)
+  creadoEn            DateTime @default(now())
+
+  // Nunca se genera dos veces el cobro del mismo mes para el mismo alumno.
+  @@unique([alumnoId, mes, anio])
+  @@map("academia_mensualidades")
+}
+
+model Asistencia {
+  id       String   @id @default(uuid())
+  alumno   Alumno   @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  alumnoId String
+  fecha    DateTime @db.Date
+  presente Boolean
+  creadoEn DateTime @default(now())
+
+  // Un solo registro por alumno por dia de entrenamiento: volver a marcar el
+  // mismo dia actualiza el registro en vez de duplicarlo (upsert).
+  @@unique([alumnoId, fecha])
+  @@map("asistencias")
 }

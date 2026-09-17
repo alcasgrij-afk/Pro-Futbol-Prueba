@@ -41,10 +41,27 @@ export enum GatewayPago {
   BAC = 'BAC',
   NEONET = 'NEONET',
   EFECTIVO = 'EFECTIVO',
+  // Gateway de desarrollo explicito: siempre genera la redireccion simulada.
+  SIMULADO = 'SIMULADO',
 }
 
 export enum TipoPagoReferencia {
   RESERVA = 'RESERVA',
+  EQUIPO = 'EQUIPO',
+  MENSUALIDAD = 'MENSUALIDAD',
+}
+
+export enum FormatoTorneo {
+  LIGA = 'LIGA',
+  ELIMINACION_DIRECTA = 'ELIMINACION_DIRECTA',
+}
+
+export enum EstadoTorneo {
+  PROXIMO = 'PROXIMO',
+  INSCRIPCIONES_ABIERTAS = 'INSCRIPCIONES_ABIERTAS',
+  EN_CURSO = 'EN_CURSO',
+  FINALIZADO = 'FINALIZADO',
+  CANCELADO = 'CANCELADO',
 }
 
 // ---------- Bot: estados de la maquina de conversacion (ver Diagrama 3) ----------
@@ -160,4 +177,131 @@ export interface ApiErrorResponse {
   statusCode: number;
   message: string | string[];
   error?: string;
+}
+
+// ---------- Reportes (Fase 5) ----------
+
+export interface ReporteIngresosDTO {
+  desde: string;
+  hasta: string;
+  totalQ: number;
+  cantidadPagos: number;
+  porDia: { fecha: string; totalQ: number }[];
+  porModulo: { tipoReferencia: string; etiqueta: string; totalQ: number; cantidad: number }[];
+}
+
+export interface ReporteOcupacionDTO {
+  desde: string;
+  hasta: string;
+  porCancha: {
+    canchaId: string;
+    canchaNombre: string;
+    bloquesOcupados: number;
+    bloquesTotales: number;
+    porcentajeOcupacion: number;
+  }[];
+}
+
+export interface ReporteMorosidadDTO {
+  diasVencimiento: number;
+  totalQ: number;
+  cantidad: number;
+  detalle: {
+    pagoId: string;
+    tipoReferencia: string;
+    etiqueta: string;
+    montoQ: number;
+    diasVencido: number;
+    descripcion: string;
+  }[];
+}
+
+// ---------- Torneos (Fase 3) ----------
+
+export interface TorneoDTO {
+  id: string;
+  nombre: string;
+  descripcion?: string | null;
+  formato: FormatoTorneo;
+  categoria?: string | null;
+  maxEquipos: number;
+  cuotaInscripcionQ: number;
+  fechaInicio?: string | null;
+  fechaLimiteInscripcion?: string | null;
+  estado: EstadoTorneo;
+  equiposInscritos: number;
+  creadoEn: string;
+}
+
+export interface EquipoDTO {
+  id: string;
+  torneoId: string;
+  nombre: string;
+  capitanNombre?: string | null;
+  capitanTelefono?: string | null;
+  cuotaPagada: boolean;
+  creadoEn: string;
+}
+
+export interface PartidoDTO {
+  id: string;
+  jornada: number;
+  ronda?: number | null;
+  posicion?: number;
+  localId?: string | null;
+  visitanteId?: string | null;
+  localNombre?: string | null;
+  visitanteNombre?: string | null;
+  golesLocal?: number | null;
+  golesVisitante?: number | null;
+  /** Ganador por penales de un partido de eliminacion directa empatado. */
+  penalesGanadorId?: string | null;
+  penalesGanadorNombre?: string | null;
+  jugado: boolean;
+}
+
+export interface PosicionDTO {
+  equipoId: string;
+  nombre: string;
+  jugados: number;
+  ganados: number;
+  empatados: number;
+  perdidos: number;
+  gf: number;
+  gc: number;
+  dif: number;
+  puntos: number;
+}
+
+// ---------- Academia (Fase 4) ----------
+
+export interface AlumnoDTO {
+  id: string;
+  nombre: string;
+  fechaNacimiento: string;
+  categoria: string;
+  encargadoNombre: string;
+  encargadoTelefono: string;
+  activo: boolean;
+  creadoEn: string;
+}
+
+export interface AcademiaMensualidadDTO {
+  id: string;
+  alumnoId: string;
+  alumno?: { id: string; nombre: string } | null;
+  mes: number;
+  anio: number;
+  montoQ: number;
+  avisoVencidoEnviado: boolean;
+  creadoEn: string;
+  pagada: boolean;
+}
+
+export interface AsistenciaDTO {
+  id: string;
+  alumnoId: string;
+  fecha: string;
+  presente: boolean;
+  creadoEn: string;
 }

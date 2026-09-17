@@ -46,6 +46,15 @@ export class ReservasService {
       throw new BadRequestException('Esta cancha no esta disponible para reservas.');
     }
 
+    // El picker del chat usa min=hoy; este guard es la red de seguridad para
+    // cualquier llamador: no se crean reservas en fechas pasadas. "hoy" en
+    // fecha local (el cliente manda su fecha local, no UTC).
+    const d = new Date();
+    const hoyLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (dto.fecha < hoyLocal) {
+      throw new BadRequestException('No se puede reservar para una fecha pasada.');
+    }
+
     const horaInicioMin = horaAMinutos(dto.horaInicio);
     const horaFinMin = horaInicioMin + cancha.duracionBloqueMin;
 

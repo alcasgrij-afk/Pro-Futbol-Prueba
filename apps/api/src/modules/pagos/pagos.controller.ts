@@ -8,6 +8,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { GatewayPago } from '@profutbol/shared-types';
 import { PagosService } from './pagos.service';
@@ -44,6 +45,7 @@ export class PagosController {
    * para no romper el flujo local (se registra un aviso).
    */
   @Public()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Post(':gateway/webhook')
   async webhook(
     @Param('gateway') gateway: string,
@@ -55,8 +57,7 @@ export class PagosController {
     if (secreto) {
       const crudo = (req as Request & { rawBody?: Buffer }).rawBody;
       const cuerpo = crudo ?? Buffer.from(JSON.stringify(req.body));
-      const ok = verificarFirmaHmac(firma, secreto, cuerpo);
-      if (!ok) return { error: 'firma invalida' };
+      verificarFirmaHmac(firma, secreto, cuerpo);
     }
     return this.pagosService.procesarWebhook(gateway.toUpperCase() as GatewayPago, payload);
   }

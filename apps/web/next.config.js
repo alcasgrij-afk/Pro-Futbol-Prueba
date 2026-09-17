@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@profutbol/shared-types'],
+  transpilePackages: ['@profutbol/shared-types', 'geist'],
   async rewrites() {
     // En desarrollo, el frontend llama a /api/* y Next.js lo reenvia al
     // backend NestJS, evitando problemas de CORS en local.

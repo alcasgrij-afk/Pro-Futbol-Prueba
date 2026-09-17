@@ -26,11 +26,19 @@ describe('ReservasService', () => {
     precioSedeQ: 300,
   };
 
+  // Fecha futura calculada: la creacion de reservas rechaza fechas pasadas,
+  // asi que el fixture siempre apunta a manana para no pudrirse con el tiempo.
+  const mananaISO = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  };
+
   const dtoBase = {
     canchaId: 'cancha-1',
     clienteTelefono: '+502 5555 1234',
     clienteNombre: 'Juan Perez',
-    fecha: '2026-07-20',
+    fecha: mananaISO(),
     horaInicio: '18:00',
     formaPago: FormaPago.ANTICIPADO_EN_LINEA,
   };
@@ -95,7 +103,7 @@ describe('ReservasService', () => {
       const reserva = await service.crearReserva(dtoBase as any);
 
       expect(redis.adquirirLock).toHaveBeenCalledWith(
-        'lock:reserva:cancha-1:2026-07-20:1080', // 18:00 = 1080 min
+        `lock:reserva:cancha-1:${mananaISO()}:1080`, // 18:00 = 1080 min
         10,
       );
       expect(redis.liberarLock).toHaveBeenCalled(); // el lock siempre se libera
@@ -125,6 +133,13 @@ describe('ReservasService', () => {
     it('rechaza un horario fuera del horario de operacion de la cancha', async () => {
       await expect(
         service.crearReserva({ ...dtoBase, horaInicio: '23:00' } as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(redis.adquirirLock).not.toHaveBeenCalled();
+    });
+
+    it('rechaza una reserva en una fecha pasada', async () => {
+      await expect(
+        service.crearReserva({ ...dtoBase, fecha: '2020-01-01' } as any),
       ).rejects.toThrow(BadRequestException);
       expect(redis.adquirirLock).not.toHaveBeenCalled();
     });

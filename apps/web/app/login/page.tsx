@@ -18,7 +18,7 @@ export default function LoginPage() {
     try {
       const respuesta = await api.login(email, password);
       guardarToken(respuesta.accessToken);
-      router.push('/reservas');
+      router.push('/admin');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesion.');
     } finally {
@@ -42,6 +42,7 @@ export default function LoginPage() {
             <input
               id="email"
               type="email"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -57,6 +58,7 @@ export default function LoginPage() {
             <input
               id="password"
               type="password"
+              autoComplete="current-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}

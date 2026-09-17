@@ -21,6 +21,22 @@ function sesionInicial(sessionId: string): SesionChat {
   return { sessionId, estado: BotEstado.INICIO, actualizadoEn: new Date().toISOString() };
 }
 
+function fechaHoy(): string {
+  // Fecha local (no UTC): el cliente manda su fecha local; comparar contra el
+  // "hoy" UTC rechazaria reservas del dia actual en horas de la tarde/noche.
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** "2026-09-14" -> "lunes 14 de septiembre" (mediodia local evita desfases TZ). */
+function formatearFecha(iso: string): string {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString('es-GT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
 /**
  * Maquina de estados de la conversacion de reserva (ver Plan Tecnico,
  * Diagrama 3). Deliberadamente NO es un modelo de lenguaje libre: cada
@@ -40,11 +56,15 @@ export class ChatService {
     private readonly sesiones: ChatSessionService,
   ) {}
 
-  async procesar(sessionId: string, texto: string): Promise<MensajeSaliente[]> {
+  async procesar(sessionId: string, texto: string, fecha?: string): Promise<MensajeSaliente[]> {
     const sesion = (await this.sesiones.obtener(sessionId)) ?? sesionInicial(sessionId);
+    // Fecha elegida en el date picker del cliente: se guarda en la sesion para
+    // que la disponibilidad y la reserva usen ese dia (no siempre "hoy").
+    // Fechas pasadas se ignoran (el picker usa min=hoy; esta es la red de seguridad).
+    const conFecha = fecha && fecha >= fechaHoy() ? { ...sesion, fecha } : sesion;
     const entrante: Entrante = { texto, idSeleccion: texto };
 
-    const { sesion: actualizada, mensajes } = await this.procesarEntrada(sesion, entrante);
+    const { sesion: actualizada, mensajes } = await this.procesarEntrada(conFecha, entrante);
     await this.sesiones.guardar(actualizada);
     return mensajes;
   }
@@ -106,7 +126,9 @@ export class ChatService {
         { tipo: 'texto', texto: 'Hola! Bienvenido a Pro Futbol Antigua.' },
         {
           tipo: 'lista',
-          texto: 'Que cancha deseas reservar?',
+          texto: sesion.fecha
+            ? `Que cancha deseas reservar para el ${formatearFecha(sesion.fecha)}?`
+            : 'Que cancha deseas reservar?',
           opciones: canchas.map((c) => ({ id: c.id, titulo: c.nombre })),
         },
       ],
@@ -138,15 +160,15 @@ export class ChatService {
   // Compartido por MENU_CANCHA y por el atajo directo desde INICIO.
   // ---------------------------------------------------------------------
   private async mostrarDisponibilidad(sesion: SesionChat, cancha: { id: string; nombre: string }): Promise<ResultadoProcesar> {
-    const hoy = new Date().toISOString().slice(0, 10);
-    const disponibilidad = await this.canchasService.disponibilidad(cancha.id, hoy);
+    const fecha = sesion.fecha ?? fechaHoy();
+    const disponibilidad = await this.canchasService.disponibilidad(cancha.id, fecha);
     const bloquesLibres = disponibilidad.bloques.filter((b) => b.disponible);
 
     if (bloquesLibres.length === 0) {
       return {
         sesion: { ...sesion, estado: BotEstado.MENU_CANCHA },
         mensajes: [
-          { tipo: 'texto', texto: `No hay horarios libres hoy en ${cancha.nombre}. Elegi otra cancha:` },
+          { tipo: 'texto', texto: `No hay horarios libres el ${formatearFecha(fecha)} en ${cancha.nombre}. Elegi otra cancha o cambia la fecha:` },
           {
             tipo: 'lista',
             texto: 'Canchas disponibles',
@@ -161,7 +183,7 @@ export class ChatService {
       estado: BotEstado.MENU_HORARIO,
       canchaId: cancha.id,
       canchaNombre: cancha.nombre,
-      fecha: hoy,
+      fecha,
     };
 
     return {
@@ -169,7 +191,7 @@ export class ChatService {
       mensajes: [
         {
           tipo: 'lista',
-          texto: `Horarios disponibles hoy en ${cancha.nombre}:`,
+          texto: `Horarios disponibles el ${formatearFecha(fecha)} en ${cancha.nombre}:`,
           opciones: bloquesLibres.map((b) => ({ id: b.horaInicio, titulo: `${b.horaInicio} - ${b.horaFin}` })),
         },
       ],
@@ -306,7 +328,8 @@ export class ChatService {
             {
               tipo: 'pago',
               texto:
-                'Tu reserva quedo apartada por 15 minutos. Tocá "Pagar ahora" para completar el pago en linea.',
+                `Tu reserva en ${sesion.canchaNombre} para el ${formatearFecha(sesion.fecha ?? fechaHoy())} a las ${sesion.horaInicio} ` +
+                'quedo apartada por 15 minutos. Tocá "Pagar ahora" para completar el pago en linea.',
               gateway: GatewayPago.BAC,
               reservaId: reserva.id,
               montoQ: Number(reserva.precioTotalQ),
@@ -322,7 +345,8 @@ export class ChatService {
           {
             tipo: 'texto',
             texto:
-              `Reserva apartada! Pagas en sede al llegar. Tenes 30 minutos, si no ` +
+              `Reserva apartada para el ${formatearFecha(sesion.fecha ?? fechaHoy())} a las ${sesion.horaInicio}! ` +
+              `Pagas en sede al llegar. Tenes 30 minutos, si no ` +
               `te presentas o pagas, el horario se libera automaticamente.`,
           },
         ],
@@ -350,7 +374,7 @@ export class ChatService {
         mensajes: [
           {
             tipo: 'texto',
-            texto: `Pago confirmado! Tu reserva en ${sesion.canchaNombre} a las ${sesion.horaInicio} esta lista. Nos vemos!`,
+            texto: `Pago confirmado! Tu reserva en ${sesion.canchaNombre} para el ${formatearFecha(sesion.fecha ?? fechaHoy())} a las ${sesion.horaInicio} esta lista. Nos vemos!`,
           },
         ],
       };

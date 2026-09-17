@@ -66,6 +66,23 @@ describe('ChatService (maquina de estados)', () => {
     expect((mensajes[1] as { opciones: unknown[] }).opciones).toHaveLength(1);
   });
 
+  it('respeta la fecha elegida en el date picker del cliente', async () => {
+    const FECHA = '2026-09-20';
+    await chat.procesar(SESSION_ID, 'hola', FECHA);
+    const mensajes = await chat.procesar(SESSION_ID, cancha.id, FECHA);
+    const sesion = sesiones.get(SESSION_ID)!;
+    expect(sesion.fecha).toBe(FECHA);
+    expect(sesion.canchaId).toBe(cancha.id);
+    expect(canchasService.disponibilidad).toHaveBeenCalledWith(cancha.id, FECHA);
+    expect((mensajes[0] as { texto: string }).texto).toContain('Horarios disponibles el');
+  });
+
+  it('ignora una fecha pasada del cliente (sigue usando la de la sesion)', async () => {
+    await chat.procesar(SESSION_ID, 'hola', '2020-01-01');
+    const sesion = sesiones.get(SESSION_ID)!;
+    expect(sesion.fecha).toBeUndefined();
+  });
+
   it('MENU_CANCHA -> MENU_HORARIO al elegir una cancha valida', async () => {
     await enviar('hola');
     const mensajes = await enviar(cancha.id);

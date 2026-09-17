@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import { Request, Response } from 'express';
 
 /**
@@ -36,6 +37,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         `${request.method} ${request.url} -> ${status}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
+      // Solo 5xx van a Sentry: los 4xx (validacion, 401, 404) son errores del
+      // cliente y no deben gastar el cupo del plan gratis.
+      if (Sentry.isInitialized()) {
+        Sentry.captureException(exception);
+      }
     } else {
       this.logger.warn(`${request.method} ${request.url} -> ${status}`);
     }

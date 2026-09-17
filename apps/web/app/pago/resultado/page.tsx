@@ -17,7 +17,7 @@ function Resultado() {
   const simulado = params.get('simulado') === '1';
 
   const [estado, setEstado] = useState<EstadoPago>('CARGANDO');
-  const [detalle, setDetalle] = useState<{ montoQ: number; canchaNombre?: string } | null>(null);
+  const [detalle, setDetalle] = useState<{ montoQ: number; canchaNombre?: string; tipoReferencia?: string; descripcion?: string } | null>(null);
 
   useEffect(() => {
     if (!ref) {
@@ -44,7 +44,7 @@ function Resultado() {
       if (!r.ok) throw new Error('No se encontro el pago.');
       const pago = await r.json();
       if (cancelado) return;
-      setDetalle({ montoQ: pago.montoQ, canchaNombre: pago.canchaNombre });
+      setDetalle({ montoQ: pago.montoQ, canchaNombre: pago.canchaNombre, tipoReferencia: pago.tipoReferencia, descripcion: pago.descripcion });
 
       if (pago.estado === 'COMPLETADO') return setEstado('COMPLETADO');
       if (pago.estado === 'FALLIDO' || pago.estado === 'CANCELADO') return setEstado('FALLIDO');
@@ -99,7 +99,8 @@ function Resultado() {
       <Card title={titulo}>
         {detalle && (
           <div className="text-sm text-gray-600 space-y-1">
-            {detalle.canchaNombre && <p>Cancha: <span className="font-medium">{detalle.canchaNombre}</span></p>}
+            {detalle.descripcion && <p>{detalle.descripcion}</p>}
+            {!detalle.descripcion && detalle.canchaNombre && <p>Cancha: <span className="font-medium">{detalle.canchaNombre}</span></p>}
             <p>Monto: <span className="font-medium">Q{detalle.montoQ}</span></p>
           </div>
         )}
@@ -110,7 +111,9 @@ function Resultado() {
         ) : (
           <p className="text-sm text-gray-600 mt-2">
             {estado === 'COMPLETADO'
-              ? 'Tu reserva quedo confirmada. ¡Nos vemos en la cancha!'
+              ? (detalle?.tipoReferencia === 'EQUIPO'
+                  ? 'Tu inscripcion al torneo esta confirmada.'
+                  : 'Tu reserva quedo confirmada. ¡Nos vemos en la cancha!')
               : 'No se registro un cargo. Intenta pagar de nuevo o elegi pagar en sede.'}
           </p>
         )}

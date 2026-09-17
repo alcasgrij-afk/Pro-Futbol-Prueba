@@ -1,0 +1,10 @@
+# PENDIENTES.md §3.4 — Dependabot activado (2026-09-07).
+# Abre PRs semanales cuando hay actualizaciones de npm disponibles
+# (monorepo npm workspaces; directory "/" cubre apps/* y packages/*).
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

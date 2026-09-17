@@ -1,0 +1,61 @@
+# Pruebas de carga (k6) — PENDIENTES.md 2.2.
+#
+# Se disparan MANUALMENTE (workflow_dispatch), NO en cada PR: son costosas y
+# lentas, y la de concurrencia escribe una reserva en el ambiente objetivo.
+# Uso propuesto: correrlas antes de cada deploy importante contra staging.
+#
+# Para correrla:
+#   Actions → "Load tests (k6)" → Run workflow
+#   BASE_URL: URL de la API de staging (sin trailing slash)
+#   CANCHA_ID: un id real de cancha (GET /canchas).
+#   FECHA/HORA (opcional): un horario que sepas LIBRE para la prueba de
+#     concurrencia; si se omite FECHA, el script usa ahora + 7 días.
+#
+# Ambas pruebas fallan el job (exit != 0) si no cumplen sus umbrales:
+#   - disponibilidad.js: http_req_failed < 5% y p95 < 500ms.
+#   - reservas-concurrencia.js: debe quedar EXACTAMENTE 1 reserva exitosa
+#     (threshold reservas_exitosas count == 1) — valida el lock de Redis +
+#     la verificacion en transaccion de Prisma bajo trafico real.
+name: Load tests (k6)
+
+on:
+  workflow_dispatch:
+    inputs:
+      BASE_URL:
+        description: 'URL base de la API de staging, sin trailing slash'
+        required: true
+      CANCHA_ID:
+        description: 'ID real de una cancha (GET /canchas)'
+        required: true
+      FECHA:
+        description: 'Fecha libre YYYY-MM-DD para la prueba de concurrencia (opcional)'
+        required: false
+      HORA:
+        description: 'Hora libre HH:MM para la prueba de concurrencia (opcional)'
+        required: false
+        default: '20:00'
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (para leer los scripts de loadtest)
+        uses: actions/checkout@v4
+
+      - name: Carga normal de lectura (GET /canchas/:id/disponibilidad)
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: apps/api/loadtest/disponibilidad.js
+        env:
+          BASE_URL: ${{ inputs.BASE_URL }}
+          CANCHA_ID: ${{ inputs.CANCHA_ID }}
+
+      - name: Concurrencia sobre el mismo horario (POST /reservas)
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: apps/api/loadtest/reservas-concurrencia.js
+        env:
+          BASE_URL: ${{ inputs.BASE_URL }}
+          CANCHA_ID: ${{ inputs.CANCHA_ID }}
+          FECHA: ${{ inputs.FECHA }}
+          HORA: ${{ inputs.HORA }}

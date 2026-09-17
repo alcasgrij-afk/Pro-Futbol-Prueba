@@ -45,6 +45,40 @@ export class CanchasService {
       reservasDelDia,
     );
 
+    // Filter out past time slots when reserving for today
+    const hoy = this.fechaHoy();
+    const esHoy = fecha === hoy;
+
+    if (esHoy) {
+      const ahoraMin = this.horaActualMinutos();
+      return {
+        canchaId,
+        fecha,
+        bloques: bloques.map((b) => {
+          // Parse horaInicio to minutes for comparison
+          const [h, m] = b.horaInicio.split(':').map(Number);
+          const bloqueInicioMin = h * 60 + m;
+
+          // Mark as unavailable if the block starts in the past
+          return bloqueInicioMin <= ahoraMin
+            ? { ...b, disponible: false }
+            : b;
+        }),
+      };
+    }
+
     return { canchaId, fecha, bloques };
+  }
+
+  private fechaHoy(): string {
+    // Fecha local (no UTC): el cliente manda su fecha local; comparar contra el
+    // "hoy" UTC rechazaria reservas del dia actual en horas de la tarde/noche.
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  private horaActualMinutos(): number {
+    const ahora = new Date();
+    return ahora.getHours() * 60 + ahora.getMinutes();
   }
 }

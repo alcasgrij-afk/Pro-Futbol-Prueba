@@ -11,28 +11,41 @@
     "dev": "concurrently -k -n api,web --prefix-colors cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run start:dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
-    "setup": "npm run setup:docker && npm run prisma:migrate -- --name fase1_v2_chat_pagos && npm run prisma:seed",
+    "startup": "node ./scripts/startup.mjs",
+    "startup:verify": "node ./scripts/startup.mjs verify",
+    "setup": "npm run startup",
     "setup:docker": "docker compose up -d",
     "stop": "docker compose stop",
-    "build": "npm run build -w packages/shared-types && npm run build -w apps/api && npm run build -w apps/web",
+    "check:no-dev": "node ./scripts/guard-no-dev.mjs",
+    "build": "npm run check:no-dev && npm run build -w packages/shared-types && npm run build -w apps/api && npm run build -w apps/web",
     "build:api": "npm run build -w packages/shared-types && npm run build -w apps/api",
-    "build:web": "npm run build -w packages/shared-types && npm run build -w apps/web",
+    "build:web": "npm run check:no-dev && npm run build -w packages/shared-types && npm run build -w apps/web",
     "test": "npm run test -w apps/api",
     "test:cov": "npm run test:cov -w apps/api",
     "lint": "npm run lint -w apps/api && npm run lint -w apps/web",
     "prisma:generate": "npm run prisma:generate -w apps/api",
     "prisma:migrate": "npm run prisma:migrate -w apps/api",
     "prisma:seed": "npm run prisma:seed -w apps/api",
+    "prisma:studio": "npm run prisma:studio -w apps/api",
     "prepare": "husky install || true"
   },
   "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
     "concurrently": "^9.2.4",
+    "csstype": "^3.2.3",
     "husky": "^9.0.11",
     "lint-staged": "^15.2.7",
     "prettier": "^3.3.2"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "overrides": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0"
   },
   "dependencies": {
     "bcrypt": "^5.1.1"

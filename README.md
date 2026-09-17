@@ -1,9 +1,10 @@
-# Pro Futbol Antigua — Fase 1 (MVP)
+# Pro Futbol Antigua
 
 Sistema de Reservas, Pagos y Gestion Deportiva. Este repositorio contiene el
-codigo de la **Fase 1** descrita en el Plan de Desarrollo Tecnico: chatbot
-web con maquina de estados, reservas con disponibilidad en tiempo real,
-pago en linea por redireccion (BAC/NeoNet), y panel administrativo basico.
+codigo completo del Plan de Desarrollo Tecnico (Fases 1-5): chatbot web con
+maquina de estados, reservas con disponibilidad en tiempo real, pago en linea
+por redireccion (BAC/NeoNet), torneos, academia, reportes con exportacion
+Excel/PDF, y panel administrativo.
 
 Si no has leido el Plan de Desarrollo Tecnico completo, leelo primero — este
 README asume que conoces la arquitectura general (Diagrama 1) y el modelo de
@@ -16,7 +17,7 @@ datos (Diagrama 2).
 ```
 profutbol-antigua/
 ├── apps/
-│   ├── api/          Backend NestJS (bot, reservas, pagos, panel admin API)
+│   ├── api/          Backend NestJS (chatbot web, reservas, pagos, torneos, academia, reportes, panel admin API)
 │   └── web/           Panel administrativo en Next.js
 ├── packages/
 │   └── shared-types/   Tipos TypeScript compartidos entre api y web
@@ -25,21 +26,21 @@ profutbol-antigua/
 └── .github/workflows/ci.yml Pipeline de CI (lint + test + build)
 ```
 
-**Lo que SI esta implementado en esta Fase 1:**
+**Lo que esta implementado:**
 - Chatbot web (widget flotante) con maquina de estados completa (INICIO → ... → RESERVA_CONFIRMADA/LIBERADA), atendido por WebSocket (namespace `/chat`) y sesion en Redis
 - Calculo de disponibilidad en tiempo real (sin tabla de horarios fijos)
 - Creacion de reservas con lock distribuido en Redis + verificacion en transaccion (anti doble-reserva)
 - Liberacion automatica de reservas no pagadas (BullMQ, timeout configurable)
 - Pago en linea por redireccion a BAC Credomatic / NeoNet (ver seccion 6)
-- Panel admin: login, listado de reservas del dia, confirmar/cancelar
-- Autenticacion JWT con roles (ADMIN / RECEPCION / ENTRENADOR)
-- 37 pruebas unitarias sobre la logica de negocio critica (disponibilidad, locking, maquina de estados, firma de webhooks)
+- Panel admin: login, reservas, torneos, academia, reportes con exportacion Excel/PDF
+- Autenticacion JWT con roles (ADMIN / RECEPCION / ENTRENADOR) y cambio de contraseña
+- Mas de 100 pruebas unitarias sobre la logica de negocio critica
 
-**Lo que NO esta en esta Fase 1** (llega en fases posteriores, ver Plan Tecnico):
-- Sitio web publico de reservas (Fase 2)
-- Integracion completa con NeoNet/VisaNet y API completa de BAC (Fase 2)
-- Torneos, academia, reportes avanzados (Fases 3-5)
-- Envio real de recordatorios automaticos (Fase 2)
+**Lo que NO esta implementado todavia** (ver `PENDIENTES.md`):
+- Sitio web publico de reservas (el panel reserva; el flujo publico es futuro)
+- Integracion completa con NeoNet/VisaNet y API completa de BAC (hoy usa pasarela simulada)
+- Envio real de recordatorios automaticos (WhatsApp/SMS queda como log)
+- Pagina web de reportes en el panel (la API existe, el frontend falta)
 
 ---
 
@@ -53,7 +54,7 @@ profutbol-antigua/
 
 ---
 
-## 3. Arranque rapido (menos de 15 minutos)
+## 3. Arranque rapido (menos de 5 minutos)
 
 ```bash
 # 1. Clonar e instalar dependencias de todo el monorepo
@@ -61,31 +62,25 @@ git clone <url-del-repo>
 cd profutbol-antigua
 npm install
 
-# 2. Levantar Postgres y Redis
-docker compose up -d
-docker compose exec postgres pg_isready -U profutbol
-
-# 3. Configurar variables de entorno del backend
+# 2. Copiar variables de entorno (los valores por defecto funcionan para desarrollo local)
 cp .env.example apps/api/.env
 cp apps/web/.env.local.example apps/web/.env.local
-# El .env.example ya trae valores por defecto que funcionan con el
-# docker-compose.yml de este repo, no es necesario editar nada para
-# arrancar en local.
 
-# 4. Build del monorepo (necesario ANTES de test la primera vez y tras cambios en shared-types)
-npm run build
+# 3. Arrancar todo el stack con verificación automática
+npm run startup
 
-# 5. Generar el cliente de Prisma y aplicar el esquema
-npm run prisma:generate
-npm run prisma:migrate -w apps/api -- --name init
-
-# 6. Cargar datos iniciales (2 canchas + usuario admin)
-npm run prisma:seed
-
-# 7. Arrancar el backend (puerto 3001) y el panel admin (puerto 3000)
-npm run dev:api      # en una terminal
-npm run dev:web      # en otra terminal
+# 4. Arrancar el backend (puerto 3001) y el panel admin (puerto 3000)
+npm run dev
 ```
+
+**¿Qué hace `npm run startup`?**
+- ✅ Verifica que los puertos 3000 y 3001 estén libres
+- ✅ Levanta Docker containers (Postgres + Redis) y espera hasta que estén saludables
+- ✅ Aplica las migraciones de Prisma
+- ✅ Carga datos iniciales (2 canchas + usuario admin)
+- ✅ Verifica que todos los servicios estén funcionando
+
+Si algo falla, el script te dice exactamente qué salió mal y cómo arreglarlo.
 
 Verificacion de que todo esta funcionando:
 - `http://localhost:3001/health` → `{ "status": "ok", ... }`
@@ -97,6 +92,18 @@ Verificacion de que todo esta funcionando:
   el flujo de reserva por chat (sin credenciales externas).
 
 > **Nota:** `npm run test` requiere que `npm run build` se haya ejecutado al menos una vez (genera `packages/shared-types/dist`). En CI, el orden correcto es `build → test → lint`.
+
+---
+
+## 4. Troubleshooting
+
+¿Problemas con el arranque? Consulta la guia completa de troubleshooting en [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
+
+Los problemas mas comunes:
+- **"Error inesperado" en login** → Ejecuta `npm run startup` antes de `npm run dev`
+- **Puerto 3000/3001 en uso** → Mata el proceso conflictivo o usa `npm run startup` que lo detecta automaticamente
+- **PostgreSQL/Redis no responden** → Verifica que Docker este corriendo con `docker ps`
+- **Cannot find module './383.js'** → Limpia `.next` con `rm -rf apps/web/.next` y reinicia el dev server
 
 Si algo falla, ver la seccion **9. Solucion de problemas** al final.
 
@@ -131,11 +138,11 @@ El pago en línea usa un **flujo de redirección**, no links pegados a mano:
 el sistema le pide a la pasarela (BAC Credomatic o NeoNet) crear una orden de
 pago y recibe una `redirectUrl`; el cliente es redirigido a la página de pago
 de la pasarela, paga ahí, y la pasarela avisa al sistema por **webhook**
-(`POST /payments/webhook/:gateway`, verificado con HMAC) que el pago se
+(`POST /payments/:gateway/webhook`, verificado con HMAC) que el pago se
 completó. La reserva se confirma sola, sin intervención de nadie.
 
 Para probarlo localmente necesitás las credenciales de la pasarela en
-`apps/api/.env` (`BAC_MERCHANT_ID`, `BAC_API_KEY`, `BAC_WEBHOOK_SECRET`, o los
+`apps/api/.env` (`BAC_API_URL`, `BAC_API_KEY`, `BAC_WEBHOOK_SECRET`, o los
 equivalentes de NeoNet). Con una reserva en estado `PENDIENTE_PAGO`:
 
 ```bash
@@ -170,8 +177,9 @@ directamente desde el panel admin (botón **"Confirmar"** o
 |---|---|
 | `npm run dev:api` | Backend con hot-reload (puerto 3001) |
 | `npm run dev:web` | Panel admin con hot-reload (puerto 3000) |
-| `npm run build` | Build de produccion de todo el monorepo |
-| `npm test` | Corre las 37 pruebas unitarias del backend (requiere `npm run build` previo) |
+| `npm run build` | Build de produccion de todo el monorepo (aborta si el dev server esta vivo) |
+| `npm run check:no-dev` | Verifica solo que no haya dev server en 3000/3001 (lo usa el build) |
+| `npm test` | Corre las 36 pruebas unitarias del backend (requiere `npm run build` previo) |
 | `npm run test:cov` | Igual, con reporte de cobertura |
 | `npm run lint` | ESLint en api y web |
 | `npm run prisma:studio` | Explorador visual de la base de datos |
@@ -197,6 +205,10 @@ directamente desde el panel admin (botón **"Confirmar"** o
   en DigitalOcean App Platform como sitio Next.js está preparado para eso
   (`next build && next start`), apuntando `NEXT_PUBLIC_API_URL` a la URL
   publica de la API.
+- **Importante:** `npm run build` exige que el dev server este DETENIDO.
+  `next build` y `next dev` comparten el directorio `.next`; correr el build
+  con el dev vivo lo envenena (error tipico `Cannot find module './383.js'`).
+  El build lo valida solo y aborta — no intentes forzarlo con `--ignore-scripts`.
 
 ---
 
@@ -220,6 +232,12 @@ consola de `dev:api` — el `ChatGateway` registra allí cada conexión entrante
 **Login falla con "Correo o contrasena incorrectos" recien despues del
 seed:** confirma que `npm run prisma:seed` corrio sin errores y que estas
 usando exactamente `admin@profutbolantigua.com` / `CambiarEsta123!`.
+
+**`Cannot find module './383.js'` (o cualquier `./NNN.js`) al abrir una
+pagina:** es `.next` envenenado — `next build` corrio mientras `next dev`
+estaba vivo, y ambos comparten el mismo `.next`. Ya no deberia pasar:
+el build se bloquea solo con el guard `npm run check:no-dev`. Si reaparece:
+parar el dev (Ctrl+C), `rm -rf apps/web/.next`, y relanzar `npm run dev`.
 
 ---
 

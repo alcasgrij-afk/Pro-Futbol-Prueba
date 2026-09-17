@@ -38,9 +38,6 @@ jobs:
       REDIS_PORT: 6379
       JWT_ACCESS_SECRET: ci-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
-      WHATSAPP_PROVIDER: mock
-      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ci-token
-      BAC_COMPRA_CLICK_MODE: manual
 
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +62,7 @@ jobs:
         run: npm run test:cov -w apps/api
 
       - name: Aplicar migraciones (schema de prueba)
-        run: npm run prisma:migrate -w apps/api -- deploy
+        run: npm run prisma:deploy -w apps/api
 
       - name: Build API
         run: npm run build:api

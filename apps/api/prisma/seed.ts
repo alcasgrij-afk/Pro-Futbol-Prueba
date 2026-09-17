@@ -65,7 +65,7 @@ async function main() {
   console.log('Listo:');
   console.log(`  - ${canchaF5.nombre} (${canchaF5.id})`);
   console.log(`  - ${canchaF7.nombre} (${canchaF7.id})`);
-  console.log(`  - Usuario admin: ${admin.email} / contrasena temporal: 987654321!`);
+  console.log(`  - Usuario admin: ${admin.email} / contrasena temporal: CambiarEsta123!`);
 }
 
 main()

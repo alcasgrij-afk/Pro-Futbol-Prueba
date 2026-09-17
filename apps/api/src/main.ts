@@ -1,12 +1,26 @@
 import 'reflect-metadata';
+import 'dotenv/config'; // carga .env antes de Sentry.init (ConfigModule corre dentro de create)
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import * as Sentry from '@sentry/nestjs';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
+  // --- Monitoreo de errores (Fase 5) ---
+  // Activo solo si SENTRY_DSN esta definido; sin DSN todo es no-op y el arranque
+  // queda identico. Plan gratuito: ~50k eventos/mes, retencion 30 dias.
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV ?? 'development',
+      tracesSampleRate: 0.1, // ponytail: muestreo bajo para no quemar el cupo del plan gratis
+      integrations: [Sentry.nestIntegration()],
+    });
+  }
+
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     logger: ['error', 'warn', 'log', process.env.NODE_ENV !== 'production' ? 'debug' : 'log'],
@@ -42,7 +56,7 @@ async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Pro Futbol Antigua - API')
-      .setDescription('Reservas, pagos, chatbot web y panel administrativo (Fase 1)')
+      .setDescription('Reservas, pagos, chatbot web, torneos, academia y reportes')
       .setVersion('1.0')
       .addBearerAuth()
       .build();
