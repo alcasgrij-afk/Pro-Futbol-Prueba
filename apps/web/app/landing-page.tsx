@@ -9,9 +9,9 @@ export default function LandingPage() {
   useEffect(() => {
     // Smooth scroll for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function (e) {
+      anchor.addEventListener('click', function (e) => {
         e.preventDefault();
-        const href = this.getAttribute('href');
+        const href = (e.currentTarget as HTMLAnchorElement).getAttribute('href');
         if (!href || href === '#') { setMobileMenuOpen(false); return; }
         const target = document.querySelector(href);
         if (target) {

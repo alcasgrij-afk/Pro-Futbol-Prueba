@@ -81,6 +81,7 @@ export class AuthService {
       throw new UnauthorizedException('La contrasena actual no es correcta.');
     }
 
+    const saltRounds = this.config.get<number>('BCRYPT_SALT_ROUNDS', 12);
     const nuevoHash = await bcrypt.hash(passwordNuevo, saltRounds);
     await this.prisma.usuario.update({ where: { id: usuarioId }, data: { passwordHash: nuevoHash } });
 
