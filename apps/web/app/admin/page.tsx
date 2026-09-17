@@ -90,7 +90,7 @@ export default function AdminHomePage() {
         </h2>
         <div className="space-y-2">
           {ACCESOS.map((a) => {
-            const colors = COLOR_CLASSES[a.color];
+            const colors = COLOR_CLASSES[a.color as keyof typeof COLOR_CLASSES];
             return (
               <Link
                 key={a.href}
