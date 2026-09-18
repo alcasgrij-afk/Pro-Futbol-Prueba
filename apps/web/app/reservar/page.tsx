@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { MensajeSaliente } from '@profutbol/shared-types';
-import { hoyISODias, RESERVA_MAX_DIAS } from '../../lib/fechas';
+import WeekDatePicker from '../../components/WeekDatePicker';
 
 const SESSION_KEY = 'profutbol_chat_session';
 
@@ -49,6 +49,9 @@ export default function ReservarPage() {
   const [escribiendo, setEscribiendo] = useState('');
   // Fecha para la cual se reserva; el date picker la envia con cada mensaje.
   const [fecha, setFecha] = useState(hoyISO());
+  // El chat queda deshabilitado hasta que el usuario elige explicitamente un
+  // dia en el WeekDatePicker (no alcanza con el default de "hoy").
+  const [fechaConfirmada, setFechaConfirmada] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const finRef = useRef<HTMLDivElement>(null);
 
@@ -136,8 +139,14 @@ export default function ReservarPage() {
     localStorage.removeItem(SESSION_KEY);
     setMensajes([]);
     setFecha(hoyISO());
+    setFechaConfirmada(false);
     setTimeout(focusChat, 100);
   }
+
+  const elegirFecha = useCallback((f: string) => {
+    setFecha(f);
+    setFechaConfirmada(true);
+  }, []);
 
   const focusChat = useCallback(() => {
     document.getElementById('chatArea')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -270,20 +279,8 @@ export default function ReservarPage() {
             ))}
           </div>
 
-          {/* Date strip: para que dia se reserva (viaja con cada mensaje) */}
-          <div className="mx-auto mt-4 w-full max-w-[640px] px-3.5 py-2.5 rounded-2xl border border-white/15 bg-white/5 flex items-center justify-center gap-2 flex-wrap text-[13px]">
-            <span className="text-[#bcd0e8]">Reservar para el</span>
-            <input
-              type="date"
-              value={fecha}
-              min={hoyISO()}
-              max={hoyISODias(RESERVA_MAX_DIAS)}
-              onChange={(e) => setFecha(e.target.value)}
-              aria-label="Fecha de la reserva"
-              suppressHydrationWarning
-              className="min-h-11 rounded-[12px] bg-white px-2.5 text-xs font-bold text-[#173f70] outline-none border border-white/40 focus:border-[#d8b32d] [color-scheme:light]"
-            />
-          </div>
+          {/* Selector semanal: paso 1, la fecha manda el resto del flujo */}
+          <WeekDatePicker value={fecha} confirmed={fechaConfirmada} onSelect={elegirFecha} />
         </div>
       </section>
 
@@ -313,8 +310,20 @@ export default function ReservarPage() {
               </button>
             </div>
 
-            <div className="flex-1 min-h-0 flex flex-col bg-[#eef8ff]">
-              <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 overscroll-contain" role="log" aria-live="polite">
+            <div className="relative flex-1 min-h-0 flex flex-col bg-[#eef8ff]">
+              {!fechaConfirmada && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-white/75 backdrop-blur-[2px] text-center px-6">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#0d76e8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M16 2v4M8 2v4M3 10h18" />
+                    <path d="M8 20l3-3-3-3" transform="translate(0 -1)" />
+                  </svg>
+                  <p className="text-sm font-bold text-[#173f70]">Elegí una fecha arriba para empezar</p>
+                  <p className="text-xs text-[#6b89ab] max-w-[240px]">Así te mostramos los horarios que realmente están libres ese día.</p>
+                </div>
+              )}
+              <div className="flex-1 min-h-0 flex flex-col" inert={!fechaConfirmada || undefined}>
+              <div className={`flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 overscroll-contain ${!fechaConfirmada ? 'opacity-40' : ''}`} role="log" aria-live="polite">
                 {conectado === false && (
                   <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-2 text-center text-sm text-red-600">
                     No se pudo conectar al servidor. Verificá tu conexión e intentá de nuevo.
@@ -330,7 +339,9 @@ export default function ReservarPage() {
                       <div className="px-3.5 py-3 rounded-[17px] rounded-bl-[6px] bg-white border border-[#d9ebf8] text-[#173f70] text-sm leading-relaxed shadow-[0_4px_14px_rgba(4,49,104,.05)]">
                         {conectado === null
                           ? 'Verificando conexión…'
-                          : '¡Hola! Estoy aquí para ayudarte a reservar tu cancha. ¿Qué fecha te gustaría?'}
+                          : fechaConfirmada
+                            ? '¡Hola! Estoy aquí para ayudarte a reservar tu cancha. ¿Qué cancha preferís?'
+                            : 'Elegí una fecha arriba y te muestro los horarios disponibles.'}
                         <span className="block mt-1 text-[10px] opacity-60 text-right">
                           {new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
@@ -339,7 +350,7 @@ export default function ReservarPage() {
                     <div className="flex flex-wrap gap-2 pl-9">
                       <button
                         onClick={() => enviar('Hola', true)}
-                        disabled={cargando}
+                        disabled={cargando || !fechaConfirmada}
                         className="min-h-11 rounded-full border border-[#bddff7] bg-white text-[#0d76e8] px-3 py-1.5 text-xs font-black hover:bg-[#f7fcff] disabled:opacity-40 transition-colors"
                       >
                         Empezar a reservar
@@ -386,7 +397,7 @@ export default function ReservarPage() {
                   />
                   <button
                     type="submit"
-                    disabled={conectado === false || !escribiendo.trim() || cargando}
+                    disabled={conectado === false || !escribiendo.trim() || cargando || !fechaConfirmada}
                     aria-label="Enviar mensaje"
                     className="w-[46px] h-[46px] flex-none rounded-2xl bg-[#d8b32d] text-[#06366d] font-black text-lg shadow-[0_6px_15px_rgba(194,215,0,.20)] disabled:opacity-50 hover:bg-[#d0a92a] transition-colors"
                   >
@@ -397,6 +408,7 @@ export default function ReservarPage() {
                   Tus datos se usan únicamente para gestionar la reserva.
                 </div>
               </form>
+              </div>
             </div>
           </section>
 
