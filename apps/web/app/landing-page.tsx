@@ -313,11 +313,17 @@ export default function LandingPage() {
                 </a>
               </div>
 
-              <div className="relative h-80 rounded-[22px] bg-gradient-to-br from-[#dfe9f7] to-[#c9dcf3] border border-[#dce6f5] flex items-center justify-center overflow-hidden">
-                <span className="absolute top-4 left-4 bg-white px-4 py-2 rounded-full text-xs font-semibold text-[#0a3d7d] shadow-lg">
+              <div className="relative h-80 rounded-[22px] border border-[#dce6f5] overflow-hidden">
+                <iframe
+                  title="Ubicacion de Pro Futbol Antigua"
+                  src="https://maps.google.com/maps?q=C.+de+Chaj%C3%B3n+4%2C+Antigua+Guatemala&z=16&output=embed"
+                  className="absolute inset-0 h-full w-full border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+                <span className="absolute top-4 left-4 bg-white px-4 py-2 rounded-full text-xs font-semibold text-[#0a3d7d] shadow-lg pointer-events-none">
                   📍 Antigua Guatemala
                 </span>
-                <span className="text-sm font-semibold text-[#0f59b3]">Mapa interactivo aquí</span>
               </div>
             </div>
           </div>
