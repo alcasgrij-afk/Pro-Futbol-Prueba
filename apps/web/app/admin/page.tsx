@@ -4,10 +4,10 @@ import Image from 'next/image';
 // Landing del panel admin: hub de accesos a cada funcion. El shell (guarda de
 // sesion + header navy) lo provee app/admin/layout.tsx via AdminLayout.
 const MODULOS = [
-  { href: '/reservas', t: 'Reservas del dÃ­a', d: 'Confirmar, cancelar y adjuntar links de pago.', color: 'navy' },
+  { href: '/reservas', t: 'Reservas del día', d: 'Confirmar, cancelar y adjuntar links de pago.', color: 'navy' },
   { href: '/admin/torneos', t: 'Torneos', d: 'Crear y gestionar torneos e inscripciones.', color: 'mustard' },
   { href: '/admin/academia', t: 'Academia', d: 'Alumnos, asistencia y mensualidades.', color: 'teal' },
-  { href: '/admin/reportes', t: 'Reportes', d: 'MÃ©tricas de reservas e ingresos.', color: 'slate' },
+  { href: '/admin/reportes', t: 'Reportes', d: 'Métricas de reservas e ingresos.', color: 'slate' },
 ] as const;
 
 const ACCESOS = [
@@ -78,7 +78,7 @@ export default function AdminHomePage() {
                 <span className={`font-semibold ${colors.text} text-lg`}>{m.t}</span>
                 <p className="text-sm text-gray-500 mt-1">{m.d}</p>
               </div>
-              <span className="text-gray-400 group-hover:text-navy transition" aria-hidden="true">â€º</span>
+              <span className="text-gray-400 group-hover:text-navy transition" aria-hidden="true">›</span>
             </Link>
           );
         })}
