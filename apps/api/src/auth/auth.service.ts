@@ -81,7 +81,10 @@ export class AuthService {
       throw new UnauthorizedException('La contrasena actual no es correcta.');
     }
 
-    const saltRounds = this.config.get<number>('BCRYPT_SALT_ROUNDS', 12);
+    // ConfigService no castea en runtime: en Render las env vars llegan como
+    // string ("12"), y bcrypt.hash trata un segundo argumento string como una
+    // salt literal (no como cantidad de rounds) -> tira "Invalid salt version".
+    const saltRounds = Number(this.config.get('BCRYPT_SALT_ROUNDS', 12));
     const nuevoHash = await bcrypt.hash(passwordNuevo, saltRounds);
     await this.prisma.usuario.update({ where: { id: usuarioId }, data: { passwordHash: nuevoHash } });
 
