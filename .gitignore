@@ -17,6 +17,9 @@ graphify-out/
 # Prisma seed compilado (artefacto de tsc/ts-node)
 apps/api/prisma/seed.js
 apps/api/prisma/seed.js.map
+# shared-types: tsc corrido sin -p tsconfig.json emite aqui en vez de dist/
+packages/shared-types/src/*.js
+packages/shared-types/src/*.js.map
 # Environment variables
 .env
 .env.*
