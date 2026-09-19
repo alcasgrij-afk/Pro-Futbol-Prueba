@@ -68,12 +68,12 @@ export default function LandingPage() {
         {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-100 py-4 px-6">
-            <a href="#inicio" className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Inicio</a>
-            <a href="#reservar" className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Reservar</a>
-            <a href="#canchas" className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Canchas</a>
-            <a href="#precios" className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Precios</a>
-            <a href="#informacion" className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Información</a>
-            <a href="#contacto" className="block py-3 text-[#0a3d7d] font-medium">Contacto</a>
+            <a href="#inicio" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Inicio</a>
+            <a href="#reservar" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Reservar</a>
+            <a href="#canchas" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Canchas</a>
+            <a href="#precios" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Precios</a>
+            <a href="#informacion" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Información</a>
+            <a href="#contacto" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium">Contacto</a>
           </div>
         )}
       </header>

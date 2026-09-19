@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { hoyISODias } from '../lib/fechas';
 
 type Cancha = { id: string; nombre: string };
@@ -10,20 +10,13 @@ type InfoDia = { bloques: Bloque[] } | 'error' | undefined;
 type Mapa = Record<string, Record<string, InfoDia>>;
 
 const DIAS_VISIBLES = 3;
+// El glow llamativo solo corre una vez al montar, no queda parpadeando
+// mientras el usuario decide (era demasiado insistente).
+const GLOW_DURACION_MS = 2600;
 
 function corto(nombre: string): string {
   const m = nombre.match(/Futbol\s*(\d+)/i);
   return m ? `F${m[1]}` : nombre.slice(0, 2).toUpperCase();
-}
-
-function AlertaCircle({ size = 12 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="10" fill="#ef4444" />
-      <path d="M12 7v6" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="12" cy="16.5" r="1.15" fill="#fff" />
-    </svg>
-  );
 }
 
 /**
@@ -43,8 +36,14 @@ export default function WeekDatePicker({
 }) {
   const [canchas, setCanchas] = useState<Cancha[] | null>(null);
   const [mapa, setMapa] = useState<Mapa>({});
+  const [glowActivo, setGlowActivo] = useState(true);
 
   const dias = Array.from({ length: DIAS_VISIBLES }, (_, i) => hoyISODias(i));
+
+  useEffect(() => {
+    const t = setTimeout(() => setGlowActivo(false), GLOW_DURACION_MS);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
@@ -87,7 +86,7 @@ export default function WeekDatePicker({
 
   return (
     <div className="relative mx-auto mt-6 w-full max-w-[760px]">
-      {!confirmed && (
+      {!confirmed && glowActivo && (
         <div
           aria-hidden
           className="absolute -inset-1.5 rounded-[28px] bg-[#d8b32d]/45 blur-xl motion-safe:animate-pulse"
@@ -119,6 +118,7 @@ export default function WeekDatePicker({
             const bloquesRef = (canchas ?? [])
               .map((c) => mapa[fechaISO]?.[c.id])
               .find((info): info is { bloques: Bloque[] } => !!info && info !== 'error');
+            const nCols = bloquesRef?.bloques.length ?? 0;
 
             return (
               <button
@@ -144,56 +144,45 @@ export default function WeekDatePicker({
                 </div>
 
                 {cargando ? (
-                  <div className="h-12 rounded-lg bg-white/10 motion-safe:animate-pulse" aria-hidden />
-                ) : (
-                  <div className="flex flex-col gap-1.5 overflow-x-auto">
-                    {/* Regla de horas, una sola vez por dia */}
-                    {bloquesRef && (
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 shrink-0" />
-                        <div className="flex gap-[2px]">
-                          {bloquesRef.bloques.map((b) => (
-                            <span
-                              key={b.horaInicio}
-                              className={`w-4 shrink-0 text-center text-[7px] font-bold ${seleccionado ? 'opacity-60' : 'opacity-50'}`}
-                            >
-                              {b.horaInicio.split(':')[0]}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  <div className="h-16 rounded-lg bg-white/10 motion-safe:animate-pulse" aria-hidden />
+                ) : bloquesRef ? (
+                  <div
+                    className="grid gap-x-[3px] gap-y-1.5 items-center"
+                    style={{ gridTemplateColumns: `28px repeat(${nCols}, 1fr)` }}
+                  >
+                    {/* Regla de horas: una sola fila, alineada con las columnas de F5/F7 abajo */}
+                    <span />
+                    {bloquesRef.bloques.map((b) => (
+                      <span
+                        key={`h-${b.horaInicio}`}
+                        className={`text-center text-[8px] font-bold ${seleccionado ? 'opacity-60' : 'opacity-50'}`}
+                      >
+                        {b.horaInicio.split(':')[0]}
+                      </span>
+                    ))}
 
                     {(canchas ?? []).map((c) => {
                       const info = mapa[fechaISO]?.[c.id];
                       return (
-                        <div key={c.id} className="flex items-center gap-2">
-                          <span className={`w-5 shrink-0 text-[10px] font-black ${seleccionado ? 'opacity-70' : 'opacity-60'}`}>
+                        <Fragment key={c.id}>
+                          <span className={`text-[10px] font-black ${seleccionado ? 'opacity-70' : 'opacity-60'}`}>
                             {corto(c.nombre)}
                           </span>
-                          <div className="flex gap-[2px]">
-                            {info === 'error' || !info ? (
-                              <span className="text-[9px] italic opacity-60">sin datos</span>
-                            ) : (
-                              info.bloques.map((b) => (
+                          {info === 'error' || !info
+                            ? Array.from({ length: nCols }, (_, i) => <span key={`e-${c.id}-${i}`} />)
+                            : info.bloques.map((b) => (
                                 <span
-                                  key={b.horaInicio}
+                                  key={`${c.id}-${b.horaInicio}`}
                                   title={`${b.horaInicio}–${b.horaFin}: ${b.disponible ? 'Disponible' : 'No disponible'}`}
-                                  className="w-4 h-4 shrink-0 flex items-center justify-center"
-                                >
-                                  {b.disponible ? (
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                  ) : (
-                                    <AlertaCircle size={12} />
-                                  )}
-                                </span>
-                              ))
-                            )}
-                          </div>
-                        </div>
+                                  className={`aspect-square rounded-[4px] ${b.disponible ? 'bg-emerald-500' : 'bg-red'}`}
+                                />
+                              ))}
+                        </Fragment>
                       );
                     })}
                   </div>
+                ) : (
+                  <span className="text-[10px] italic opacity-60">Sin datos de disponibilidad.</span>
                 )}
               </button>
             );
@@ -205,7 +194,7 @@ export default function WeekDatePicker({
             <span className="w-2 h-2 rounded-full bg-emerald-500" /> Disponible
           </span>
           <span className="flex items-center gap-1.5">
-            <AlertaCircle size={12} /> No disponible
+            <span className="w-2 h-2 rounded-full bg-red" /> No disponible
           </span>
         </div>
       </div>
