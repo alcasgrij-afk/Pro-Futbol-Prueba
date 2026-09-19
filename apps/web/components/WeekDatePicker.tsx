@@ -151,7 +151,7 @@ export default function WeekDatePicker({
                     style={{ gridTemplateColumns: `28px repeat(${nCols}, 1fr)` }}
                   >
                     {/* Regla de horas: una sola fila, alineada con las columnas de F5/F7 abajo */}
-                    <span />
+                    <span className={`text-[8px] font-black ${seleccionado ? 'opacity-70' : 'opacity-60'}`}>Hora</span>
                     {bloquesRef.bloques.map((b) => (
                       <span
                         key={`h-${b.horaInicio}`}

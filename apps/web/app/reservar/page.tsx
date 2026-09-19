@@ -117,7 +117,9 @@ export default function ReservarPage() {
       setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'Ocurrió un error. Intentá de nuevo.' }]);
     } finally {
       setCargando(false);
-      areaRef.current?.focus();
+      // No reenfocar aca: en movil, reabrir el teclado en cada respuesta
+      // rompia el scroll de la pagina durante la conversacion. La atencion
+      // ahora va al mensaje del bot (ver renderMensaje), no a la caja.
     }
   }, [cargando, fecha]);
 
@@ -149,15 +151,18 @@ export default function ReservarPage() {
     setTimeout(focusChat, 100);
   }
 
-  const elegirFecha = useCallback((f: string) => {
-    setFecha(f);
-    setFechaConfirmada(true);
-  }, []);
-
   const focusChat = useCallback(() => {
     document.getElementById('chatArea')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => areaRef.current?.focus(), 350);
   }, []);
+
+  const elegirFecha = useCallback((f: string) => {
+    setFecha(f);
+    setFechaConfirmada(true);
+    // Llevar al usuario al chat ya activo, en vez de dejarlo parado en el
+    // selector de fecha sin saber que el siguiente paso es mas abajo.
+    focusChat();
+  }, [focusChat]);
 
   function encogerTextarea(e: { currentTarget: HTMLTextAreaElement }) {
     const el = e.currentTarget;
@@ -165,8 +170,16 @@ export default function ReservarPage() {
     el.style.height = Math.min(el.scrollHeight, 130) + 'px';
   }
 
-  const renderMensaje = (m: Mensaje, i: number) => {
+  function enviarDesdeCaja() {
+    enviar(escribiendo);
+    if (areaRef.current) areaRef.current.style.height = 'auto';
+  }
+
+  const renderMensaje = (m: Mensaje, i: number, esUltimo: boolean) => {
     const esUsuario = m.tipo === 'texto' && !m.opciones && !m.gateway;
+    // El ultimo mensaje del bot se resalta para que el usuario note que hay
+    // algo que responder, en vez de resaltar la caja de texto en cada turno.
+    const resaltado = !esUsuario && esUltimo;
     const tiempo = new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false });
     return (
       <div key={i} className={`flex items-end gap-2 max-w-[92%] ${esUsuario ? 'self-end flex-row-reverse' : ''}`}>
@@ -178,10 +191,12 @@ export default function ReservarPage() {
           {esUsuario ? 'Tú' : <Image src="/profutbollogo.png" alt="" width={26} height={26} className="w-[85%] h-[85%] object-contain" />}
         </div>
         <div
-          className={`px-3.5 py-3 rounded-[17px] text-sm leading-relaxed shadow-[0_4px_14px_rgba(4,49,104,.05)] ${
+          className={`px-3.5 py-3 rounded-[17px] text-sm leading-relaxed transition-colors ${
             esUsuario
-              ? 'rounded-br-[6px] bg-[#073b82] border border-[#073b82] text-white'
-              : 'rounded-bl-[6px] bg-white border border-[#d9ebf8] text-[#173f70]'
+              ? 'rounded-br-[6px] bg-[#073b82] border border-[#073b82] text-white shadow-[0_4px_14px_rgba(4,49,104,.05)]'
+              : resaltado
+                ? 'rounded-bl-[6px] bg-[#eaf4ff] border-2 border-[#0d76e8]/50 text-[#173f70] shadow-[0_4px_18px_rgba(13,118,232,.18)]'
+                : 'rounded-bl-[6px] bg-white border border-[#d9ebf8] text-[#173f70] shadow-[0_4px_14px_rgba(4,49,104,.05)]'
           }`}
         >
           <div className="whitespace-pre-wrap break-words">{m.texto}</div>
@@ -328,8 +343,7 @@ export default function ReservarPage() {
                   <p className="text-xs text-[#6b89ab] max-w-[240px]">Así te mostramos los horarios que realmente están libres ese día.</p>
                 </div>
               )}
-              <div className="flex-1 min-h-0 flex flex-col" inert={!fechaConfirmada || undefined}>
-              <div className={`flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 overscroll-contain ${!fechaConfirmada ? 'opacity-40' : ''}`} role="log" aria-live="polite">
+              <div className={`flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 ${!fechaConfirmada ? 'opacity-40' : ''}`} role="log" aria-live="polite">
                 {conectado === false && (
                   <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-2 text-center text-sm text-red-600">
                     No se pudo conectar al servidor. Verificá tu conexión e intentá de nuevo.
@@ -363,7 +377,14 @@ export default function ReservarPage() {
                       </button>
                       <Link
                         href="/torneos"
-                        className="min-h-11 inline-flex items-center rounded-full border border-[#bddff7] bg-white text-[#0d76e8] px-3 py-1.5 text-xs font-black hover:bg-[#f7fcff] transition-colors"
+                        tabIndex={fechaConfirmada ? undefined : -1}
+                        aria-disabled={!fechaConfirmada}
+                        onClick={(e) => {
+                          if (!fechaConfirmada) e.preventDefault();
+                        }}
+                        className={`min-h-11 inline-flex items-center rounded-full border border-[#bddff7] bg-white text-[#0d76e8] px-3 py-1.5 text-xs font-black transition-colors ${
+                          fechaConfirmada ? 'hover:bg-[#f7fcff]' : 'opacity-40 pointer-events-none'
+                        }`}
                       >
                         Ver torneos
                       </Link>
@@ -371,7 +392,7 @@ export default function ReservarPage() {
                   </>
                 )}
 
-                {mensajes.map(renderMensaje)}
+                {mensajes.map((m, i) => renderMensaje(m, i, i === mensajes.length - 1))}
                 {cargando && (
                   <div className="ml-9 max-w-[92%] rounded-2xl bg-white/80 border border-[#d9ebf8] px-3.5 py-2.5 text-xs text-[#6b89ab] italic">
                     Escribiendo…
@@ -384,8 +405,7 @@ export default function ReservarPage() {
                 className="border-t border-[#dbeaf5] bg-white p-2.5"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  enviar(escribiendo);
-                  if (areaRef.current) areaRef.current.style.height = 'auto';
+                  enviarDesdeCaja();
                 }}
               >
                 <div className="flex gap-2 items-end">
@@ -393,13 +413,21 @@ export default function ReservarPage() {
                     ref={areaRef}
                     rows={1}
                     value={escribiendo}
+                    disabled={!fechaConfirmada}
                     onChange={(e) => {
                       setEscribiendo(e.target.value);
                       encogerTextarea(e);
                     }}
+                    onKeyDown={(e) => {
+                      // Enter envia; Shift+Enter sigue insertando salto de linea.
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        enviarDesdeCaja();
+                      }
+                    }}
                     placeholder="Escribí tu mensaje…"
                     aria-label="Escribí tu mensaje"
-                    className="flex-1 min-h-[44px] max-h-[130px] resize-none border-[1.5px] border-[#bddcf5] rounded-2xl px-3.5 py-2.5 text-sm text-[#173f70] outline-none bg-white focus:border-[#0d76e8] focus:shadow-[0_0_0_3px_rgba(13,118,232,.10)]"
+                    className="flex-1 min-h-[44px] max-h-[130px] resize-none border-[1.5px] border-[#bddcf5] rounded-2xl px-3.5 py-2.5 text-sm text-[#173f70] outline-none bg-white focus:border-[#0d76e8] disabled:opacity-60"
                   />
                   <button
                     type="submit"
@@ -414,7 +442,6 @@ export default function ReservarPage() {
                   Tus datos se usan únicamente para gestionar la reserva.
                 </div>
               </form>
-              </div>
             </div>
           </section>
 
