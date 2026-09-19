@@ -4,22 +4,33 @@ import { useEffect, useState } from 'react';
 import { hoyISODias } from '../lib/fechas';
 
 type Cancha = { id: string; nombre: string };
-type InfoDia = { libres: number; total: number } | 'error' | undefined;
-// disponibilidad[fechaISO][canchaId]
+type Bloque = { horaInicio: string; horaFin: string; disponible: boolean };
+type InfoDia = { bloques: Bloque[] } | 'error' | undefined;
+// mapa[fechaISO][canchaId]
 type Mapa = Record<string, Record<string, InfoDia>>;
 
-const DIAS_VISIBLES = 7;
+const DIAS_VISIBLES = 3;
 
 function corto(nombre: string): string {
   const m = nombre.match(/Futbol\s*(\d+)/i);
   return m ? `F${m[1]}` : nombre.slice(0, 2).toUpperCase();
 }
 
+function AlertaCircle({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="10" fill="#ef4444" />
+      <path d="M12 7v6" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="12" cy="16.5" r="1.15" fill="#fff" />
+    </svg>
+  );
+}
+
 /**
- * Selector semanal de fecha: 7 dias desde hoy, con un punto verde/rojo por
- * cancha indicando si queda algun horario libre ese dia. Reemplaza el
- * <input type="date"> nativo para que el usuario vea disponibilidad real
- * antes de elegir, en vez de adivinar y chocar con un dia sin cupo en el chat.
+ * Selector de fecha: 3 dias desde hoy, con el detalle hora por hora (no solo
+ * un resumen del dia) de F5 y F7. Reemplaza el <input type="date"> nativo
+ * para que el usuario vea disponibilidad real antes de elegir, en vez de
+ * adivinar y chocar con un horario ocupado recien en el chat.
  */
 export default function WeekDatePicker({
   value,
@@ -44,36 +55,25 @@ export default function WeekDatePicker({
         if (cancelado) return;
         setCanchas(lista);
 
+        const combinaciones = lista.flatMap((c) => dias.map((fecha) => ({ c, fecha })));
         const resultados = await Promise.allSettled(
-          lista.flatMap((c) =>
-            dias.map(async (fecha) => {
-              const r = await fetch(`/api/canchas/${c.id}/disponibilidad?fecha=${fecha}`, { cache: 'no-store' });
-              if (!r.ok) throw new Error('no ok');
-              const data: { bloques: { disponible: boolean }[] } = await r.json();
-              const libres = data.bloques.filter((b) => b.disponible).length;
-              return { canchaId: c.id, fecha, libres, total: data.bloques.length };
-            }),
-          ),
+          combinaciones.map(async ({ c, fecha }) => {
+            const r = await fetch(`/api/canchas/${c.id}/disponibilidad?fecha=${fecha}`, { cache: 'no-store' });
+            if (!r.ok) throw new Error('no ok');
+            const data: { bloques: Bloque[] } = await r.json();
+            return { canchaId: c.id, fecha, bloques: data.bloques };
+          }),
         );
 
         if (cancelado) return;
         const nuevo: Mapa = {};
-        for (const r of resultados) {
-          if (r.status === 'fulfilled') {
-            const { canchaId, fecha, libres, total } = r.value;
-            nuevo[fecha] = { ...nuevo[fecha], [canchaId]: { libres, total } };
-          }
-        }
-        // Marcar como error las combinaciones que fallaron (no se pudo consultar).
-        let idx = 0;
-        for (const c of lista) {
-          for (const fecha of dias) {
-            if (resultados[idx].status === 'rejected') {
-              nuevo[fecha] = { ...nuevo[fecha], [c.id]: 'error' };
-            }
-            idx++;
-          }
-        }
+        resultados.forEach((r, i) => {
+          const { c, fecha } = combinaciones[i];
+          nuevo[fecha] = {
+            ...nuevo[fecha],
+            [c.id]: r.status === 'fulfilled' ? { bloques: r.value.bloques } : 'error',
+          };
+        });
         setMapa(nuevo);
       } catch {
         if (!cancelado) setCanchas([]);
@@ -106,57 +106,95 @@ export default function WeekDatePicker({
           <h2 className="text-white font-black text-base sm:text-lg">Elegí tu fecha</h2>
         </div>
         <p className="text-[#cde8ff] text-[11px] sm:text-xs mb-4">
-          Cupos de los próximos 7 días · F5 y F7
+          Horarios por hora de los próximos 3 días · F5 y F7
         </p>
 
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+        <div className="flex flex-col gap-2.5">
           {dias.map((fechaISO) => {
             const d = new Date(fechaISO + 'T00:00:00');
             const esHoy = fechaISO === hoyISODias(0);
             const seleccionado = confirmed && value === fechaISO;
+            const cargando = canchas === null;
+            // Regla de horas: usamos el primer set de bloques que aparezca (misma grilla para F5/F7).
+            const bloquesRef = (canchas ?? [])
+              .map((c) => mapa[fechaISO]?.[c.id])
+              .find((info): info is { bloques: Bloque[] } => !!info && info !== 'error');
+
             return (
               <button
                 key={fechaISO}
                 type="button"
                 onClick={() => onSelect(fechaISO)}
                 aria-pressed={seleccionado}
-                className={`min-h-11 flex flex-col items-center gap-1 rounded-2xl border px-1.5 py-2.5 transition-all ${
+                className={`text-left rounded-2xl border px-3 py-3 transition-all ${
                   seleccionado
                     ? 'bg-[#d8b32d] border-[#d8b32d] text-[#07345d] shadow-[0_6px_16px_rgba(216,179,45,.35)]'
                     : 'bg-white/8 border-white/20 text-white hover:bg-white/15 hover:border-white/35'
                 }`}
               >
-                <span className={`text-[9px] font-bold uppercase tracking-wide ${seleccionado ? 'opacity-70' : 'text-[#cde8ff]'}`}>
-                  {d.toLocaleDateString('es-GT', { weekday: 'short' })}
-                </span>
-                <span className="text-lg font-black leading-none">{d.getDate()}</span>
-                {esHoy && !seleccionado && <span className="text-[8px] font-bold text-[#d8b32d]">Hoy</span>}
-
-                <div className="mt-1 flex items-center gap-1.5">
-                  {(canchas ?? []).map((c) => {
-                    const info = mapa[fechaISO]?.[c.id];
-                    const cargando = canchas === null || info === undefined;
-                    const libre = info && info !== 'error' ? info.libres > 0 : null;
-                    return (
-                      <span key={c.id} className="flex flex-col items-center gap-0.5" title={`${corto(c.nombre)}: ${
-                        cargando ? 'cargando…' : info === 'error' ? 'sin datos' : libre ? `${(info as { libres: number }).libres} horarios libres` : 'sin cupo'
-                      }`}>
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            cargando
-                              ? `${seleccionado ? 'bg-[#07345d]/30' : 'bg-white/30'} motion-safe:animate-pulse`
-                              : info === 'error'
-                                ? 'bg-gray-400'
-                                : libre
-                                  ? 'bg-emerald-500'
-                                  : 'bg-red-500'
-                          }`}
-                        />
-                        <span className={`text-[7px] font-bold ${seleccionado ? 'opacity-60' : 'opacity-50'}`}>{corto(c.nombre)}</span>
-                      </span>
-                    );
-                  })}
+                <div className="flex items-baseline gap-2 mb-2">
+                  <span className="text-sm font-black capitalize">
+                    {d.toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'short' })}
+                  </span>
+                  {esHoy && (
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${seleccionado ? 'bg-[#07345d]/15' : 'bg-[#d8b32d] text-[#07345d]'}`}>
+                      Hoy
+                    </span>
+                  )}
                 </div>
+
+                {cargando ? (
+                  <div className="h-12 rounded-lg bg-white/10 motion-safe:animate-pulse" aria-hidden />
+                ) : (
+                  <div className="flex flex-col gap-1.5 overflow-x-auto">
+                    {/* Regla de horas, una sola vez por dia */}
+                    {bloquesRef && (
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 shrink-0" />
+                        <div className="flex gap-[2px]">
+                          {bloquesRef.bloques.map((b) => (
+                            <span
+                              key={b.horaInicio}
+                              className={`w-4 shrink-0 text-center text-[7px] font-bold ${seleccionado ? 'opacity-60' : 'opacity-50'}`}
+                            >
+                              {b.horaInicio.split(':')[0]}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(canchas ?? []).map((c) => {
+                      const info = mapa[fechaISO]?.[c.id];
+                      return (
+                        <div key={c.id} className="flex items-center gap-2">
+                          <span className={`w-5 shrink-0 text-[10px] font-black ${seleccionado ? 'opacity-70' : 'opacity-60'}`}>
+                            {corto(c.nombre)}
+                          </span>
+                          <div className="flex gap-[2px]">
+                            {info === 'error' || !info ? (
+                              <span className="text-[9px] italic opacity-60">sin datos</span>
+                            ) : (
+                              info.bloques.map((b) => (
+                                <span
+                                  key={b.horaInicio}
+                                  title={`${b.horaInicio}–${b.horaFin}: ${b.disponible ? 'Disponible' : 'No disponible'}`}
+                                  className="w-4 h-4 shrink-0 flex items-center justify-center"
+                                >
+                                  {b.disponible ? (
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                  ) : (
+                                    <AlertaCircle size={12} />
+                                  )}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </button>
             );
           })}
@@ -167,7 +205,7 @@ export default function WeekDatePicker({
             <span className="w-2 h-2 rounded-full bg-emerald-500" /> Disponible
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-red-500" /> Sin cupo
+            <AlertaCircle size={12} /> No disponible
           </span>
         </div>
       </div>

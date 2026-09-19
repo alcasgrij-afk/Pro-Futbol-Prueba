@@ -67,11 +67,17 @@ export default function ReservarPage() {
   }, []);
 
   useEffect(() => {
+    // Sin preventScroll, enfocar el textarea (mas abajo en la pagina) hace
+    // que el navegador salte directo al chat en vez de mostrar el hero.
+    window.scrollTo(0, 0);
     verificar();
-    areaRef.current?.focus();
+    areaRef.current?.focus({ preventScroll: true });
   }, [verificar]);
 
   useEffect(() => {
+    // No auto-scrollear en el mount inicial (mensajes=[]): eso empujaria la
+    // pagina entera hacia el chat y taparia el hero "Reserva tu cancha".
+    if (mensajes.length === 0) return;
     finRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [mensajes]);
 
