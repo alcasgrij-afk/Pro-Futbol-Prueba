@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { MensajeSaliente } from '@profutbol/shared-types';
-import WeekDatePicker from '../../components/WeekDatePicker';
+import WeekDatePicker, { type SlotElegido } from '../../components/WeekDatePicker';
+
+// Cuanto dura el resaltado (una sola vez) del boton "Empezar a reservar"
+// despues de elegir un horario en el picker.
+const RESALTE_DURACION_MS = 2600;
 
 const SESSION_KEY = 'profutbol_chat_session';
 
@@ -52,6 +56,11 @@ export default function ReservarPage() {
   // El chat queda deshabilitado hasta que el usuario elige explicitamente un
   // dia en el WeekDatePicker (no alcanza con el default de "hoy").
   const [fechaConfirmada, setFechaConfirmada] = useState(false);
+  // Cancha+horario elegidos directamente en el picker (auto-selecciona el
+  // horario de la reserva sin volver a preguntarlo en el chat).
+  const [slotSeleccionado, setSlotSeleccionado] = useState<SlotElegido | null>(null);
+  // El boton "Empezar a reservar" se resalta una sola vez al elegir horario.
+  const [resaltarInicio, setResaltarInicio] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const finRef = useRef<HTMLDivElement>(null);
 
@@ -142,27 +151,39 @@ export default function ReservarPage() {
     }
   }, []);
 
-  // --- Nueva reserva: limpia la conversacion local y vuelve a hoy ---
-  function nuevaReserva() {
-    localStorage.removeItem(SESSION_KEY);
-    setMensajes([]);
-    setFecha(hoyISO());
-    setFechaConfirmada(false);
-    setTimeout(focusChat, 100);
-  }
-
   const focusChat = useCallback(() => {
     document.getElementById('chatArea')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => areaRef.current?.focus(), 350);
   }, []);
 
-  const elegirFecha = useCallback((f: string) => {
-    setFecha(f);
+  const elegirSlot = useCallback((slot: SlotElegido) => {
+    setFecha(slot.fecha);
     setFechaConfirmada(true);
+    setSlotSeleccionado(slot);
     // Llevar al usuario al chat ya activo, en vez de dejarlo parado en el
-    // selector de fecha sin saber que el siguiente paso es mas abajo.
+    // selector de horario sin saber que el siguiente paso es mas abajo.
     focusChat();
   }, [focusChat]);
+
+  useEffect(() => {
+    if (!slotSeleccionado) return;
+    setResaltarInicio(true);
+    const t = setTimeout(() => setResaltarInicio(false), RESALTE_DURACION_MS);
+    return () => clearTimeout(t);
+  }, [slotSeleccionado]);
+
+  // Arranca la conversacion. Si ya se eligio cancha+horario en el picker, los
+  // manda en dos mensajes silenciosos (el bot los reconoce como texto libre)
+  // para llegar directo a la confirmacion de precio, sin volver a preguntar.
+  const comenzarChat = useCallback(async () => {
+    if (cargando) return;
+    if (slotSeleccionado) {
+      await enviar(slotSeleccionado.canchaNombre, true);
+      await enviar(slotSeleccionado.horaInicio, true);
+    } else {
+      enviar('Hola', true);
+    }
+  }, [cargando, slotSeleccionado, enviar]);
 
   function encogerTextarea(e: { currentTarget: HTMLTextAreaElement }) {
     const el = e.currentTarget;
@@ -300,8 +321,13 @@ export default function ReservarPage() {
             ))}
           </div>
 
-          {/* Selector semanal: paso 1, la fecha manda el resto del flujo */}
-          <WeekDatePicker value={fecha} confirmed={fechaConfirmada} onSelect={elegirFecha} />
+          {/* Selector semanal: elige fecha+cancha+horario de una vez */}
+          <WeekDatePicker
+            value={fecha}
+            confirmed={fechaConfirmada}
+            selectedSlot={slotSeleccionado ? { canchaId: slotSeleccionado.canchaId, horaInicio: slotSeleccionado.horaInicio } : null}
+            onSelectSlot={elegirSlot}
+          />
         </div>
       </section>
 
@@ -323,12 +349,6 @@ export default function ReservarPage() {
                   </div>
                 </div>
               </div>
-              <button
-                onClick={nuevaReserva}
-                className="border border-[#cfe4f5] bg-white text-[#0d76e8] px-2.5 py-2 rounded-[10px] text-xs font-black hover:bg-[#f7fcff] transition-colors"
-              >
-                Nueva reserva
-              </button>
             </div>
 
             <div className="relative flex-1 min-h-0 flex flex-col bg-[#eef8ff]">
@@ -359,9 +379,11 @@ export default function ReservarPage() {
                       <div className="px-3.5 py-3 rounded-[17px] rounded-bl-[6px] bg-white border border-[#d9ebf8] text-[#173f70] text-sm leading-relaxed shadow-[0_4px_14px_rgba(4,49,104,.05)]">
                         {conectado === null
                           ? 'Verificando conexión…'
-                          : fechaConfirmada
-                            ? '¡Hola! Estoy aquí para ayudarte a reservar tu cancha. ¿Qué cancha preferís?'
-                            : 'Elegí una fecha arriba y te muestro los horarios disponibles.'}
+                          : !fechaConfirmada
+                            ? 'Elegí una fecha arriba y te muestro los horarios disponibles.'
+                            : slotSeleccionado
+                              ? `¡Perfecto! Elegiste ${slotSeleccionado.canchaNombre} el ${new Date(`${slotSeleccionado.fecha}T12:00:00`).toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${slotSeleccionado.horaInicio}. Tocá "Empezar a reservar" para confirmar.`
+                              : '¡Hola! Estoy aquí para ayudarte a reservar tu cancha. ¿Qué cancha preferís?'}
                         <span className="block mt-1 text-[10px] opacity-60 text-right">
                           {new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
@@ -369,25 +391,14 @@ export default function ReservarPage() {
                     </div>
                     <div className="flex flex-wrap gap-2 pl-9">
                       <button
-                        onClick={() => enviar('Hola', true)}
+                        onClick={comenzarChat}
                         disabled={cargando || !fechaConfirmada}
-                        className="min-h-11 rounded-full border border-[#bddff7] bg-white text-[#0d76e8] px-3 py-1.5 text-xs font-black hover:bg-[#f7fcff] disabled:opacity-40 transition-colors"
+                        className={`min-h-11 rounded-full border border-[#bddff7] bg-white text-[#0d76e8] px-3 py-1.5 text-xs font-black hover:bg-[#f7fcff] disabled:opacity-40 transition-all ${
+                          resaltarInicio ? 'ring-2 ring-[#d8b32d] shadow-[0_0_0_5px_rgba(216,179,45,.25)] scale-105' : ''
+                        }`}
                       >
                         Empezar a reservar
                       </button>
-                      <Link
-                        href="/torneos"
-                        tabIndex={fechaConfirmada ? undefined : -1}
-                        aria-disabled={!fechaConfirmada}
-                        onClick={(e) => {
-                          if (!fechaConfirmada) e.preventDefault();
-                        }}
-                        className={`min-h-11 inline-flex items-center rounded-full border border-[#bddff7] bg-white text-[#0d76e8] px-3 py-1.5 text-xs font-black transition-colors ${
-                          fechaConfirmada ? 'hover:bg-[#f7fcff]' : 'opacity-40 pointer-events-none'
-                        }`}
-                      >
-                        Ver torneos
-                      </Link>
                     </div>
                   </>
                 )}

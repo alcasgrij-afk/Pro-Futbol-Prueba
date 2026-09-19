@@ -26,6 +26,7 @@
     "prisma:generate": "npm run prisma:generate -w apps/api",
     "prisma:migrate": "npm run prisma:migrate -w apps/api",
     "prisma:seed": "npm run prisma:seed -w apps/api",
+    "prisma:seed:demo": "npm run prisma:seed:demo -w apps/api",
     "prisma:studio": "npm run prisma:studio -w apps/api",
     "prepare": "husky install || true"
   },
