@@ -100,7 +100,7 @@ export default function ReportesPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-3xl font-bold text-navy mb-1">Q{ingresos?.totalQ.toLocaleString('es-GT')}</p>
+              <p className="text-3xl font-bold text-navy mb-1">Q{(ingresos?.totalQ ?? 0).toLocaleString('es-GT')}</p>
               <p className="text-xs text-gray-600 mb-4">{ingresos?.cantidadPagos} pagos confirmados</p>
 
               <div className="space-y-1 mb-4">
@@ -153,7 +153,7 @@ export default function ReportesPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-semibold text-gray-500">Morosidad (mas de 7 dias sin pagar)</h2>
-                <p className="text-2xl font-bold text-red">Q{morosidad?.totalQ.toLocaleString('es-GT')}</p>
+                <p className="text-2xl font-bold text-red">Q{(morosidad?.totalQ ?? 0).toLocaleString('es-GT')}</p>
               </div>
               <div className="flex gap-2">
                 <button

@@ -34,6 +34,8 @@ async function main() {
     { id: 'demo-cliente-4', nombre: 'Demo - Paola Tzunun', telefono: '50091004' },
     { id: 'demo-cliente-5', nombre: 'Demo - Kevin Ajpop', telefono: '50091005' },
     { id: 'demo-cliente-6', nombre: 'Demo - Lucía Batz', telefono: '50091006' },
+    { id: 'demo-cliente-7', nombre: 'Demo - Oscar Yax', telefono: '50091007' },
+    { id: 'demo-cliente-8', nombre: 'Demo - Fátima Cúmez', telefono: '50091008' },
   ];
   const clientes: Record<string, { id: string }> = {};
   for (const c of clientesData) {
@@ -102,6 +104,31 @@ async function main() {
       id: 'demo-reserva-9', canchaId: CANCHA_F5, clienteId: 'demo-cliente-3', fecha: '2026-09-17',
       horaInicioMin: 18 * 60, horaFinMin: 19 * 60, estado: EstadoReserva.PENDIENTE_PAGO, formaPago: FormaPago.ANTICIPADO_EN_LINEA, precioTotalQ: 250,
       pago: { estado: EstadoPago.PENDIENTE, gateway: GatewayPago.BAC, creadoEn: '2026-09-17T18:05:00' },
+    },
+    {
+      id: 'demo-reserva-10', canchaId: CANCHA_F7, clienteId: 'demo-cliente-7', fecha: '2026-09-01',
+      horaInicioMin: 17 * 60, horaFinMin: 18 * 60, estado: EstadoReserva.CONFIRMADA, formaPago: FormaPago.ANTICIPADO_EN_LINEA, precioTotalQ: 350,
+      pago: { estado: EstadoPago.COMPLETADO, gateway: GatewayPago.NEONET, creadoEn: '2026-09-01T17:00:00', confirmadoEn: '2026-09-01T17:03:00' },
+    },
+    {
+      id: 'demo-reserva-11', canchaId: CANCHA_F5, clienteId: 'demo-cliente-8', fecha: '2026-09-05',
+      horaInicioMin: 19 * 60, horaFinMin: 20 * 60, estado: EstadoReserva.CONFIRMADA, formaPago: FormaPago.EN_SEDE, precioTotalQ: 300,
+      pago: { estado: EstadoPago.COMPLETADO, gateway: GatewayPago.EFECTIVO, creadoEn: '2026-09-05T19:00:00', confirmadoEn: '2026-09-05T20:00:00' },
+    },
+    {
+      id: 'demo-reserva-12', canchaId: CANCHA_F7, clienteId: 'demo-cliente-4', fecha: '2026-09-09',
+      horaInicioMin: 18 * 60, horaFinMin: 19 * 60, estado: EstadoReserva.CONFIRMADA, formaPago: FormaPago.ANTICIPADO_EN_LINEA, precioTotalQ: 350,
+      pago: { estado: EstadoPago.COMPLETADO, gateway: GatewayPago.BAC, creadoEn: '2026-09-09T18:00:00', confirmadoEn: '2026-09-09T18:04:00' },
+    },
+    {
+      id: 'demo-reserva-13', canchaId: CANCHA_F5, clienteId: 'demo-cliente-6', fecha: '2026-09-12',
+      horaInicioMin: 20 * 60, horaFinMin: 21 * 60, estado: EstadoReserva.PENDIENTE_SEDE, formaPago: FormaPago.EN_SEDE, precioTotalQ: 300,
+      pago: { estado: EstadoPago.PENDIENTE, gateway: GatewayPago.EFECTIVO, creadoEn: '2026-09-12T20:05:00' },
+    },
+    {
+      id: 'demo-reserva-14', canchaId: CANCHA_F7, clienteId: 'demo-cliente-5', fecha: '2026-09-16',
+      horaInicioMin: 17 * 60, horaFinMin: 18 * 60, estado: EstadoReserva.CONFIRMADA, formaPago: FormaPago.ANTICIPADO_EN_LINEA, precioTotalQ: 350,
+      pago: { estado: EstadoPago.COMPLETADO, gateway: GatewayPago.NEONET, creadoEn: '2026-09-16T17:00:00', confirmadoEn: '2026-09-16T17:02:00' },
     },
   ];
 
@@ -222,6 +249,9 @@ async function main() {
     { id: 'demo-alumno-2', nombre: 'Demo - Diego Set', fechaNacimiento: '2014-02-01', categoria: 'Sub-14', encargadoNombre: 'Demo - Hugo Set', encargadoTelefono: '50093002' },
     { id: 'demo-alumno-3', nombre: 'Demo - Valeria Coy', fechaNacimiento: '2011-05-04', categoria: 'Sub-16', encargadoNombre: 'Demo - Ingrid Coy', encargadoTelefono: '50093003' },
     { id: 'demo-alumno-4', nombre: 'Demo - Emilio Rax', fechaNacimiento: '2017-01-15', categoria: 'Sub-10', encargadoNombre: 'Demo - Walter Rax', encargadoTelefono: '50093004' },
+    { id: 'demo-alumno-5', nombre: 'Demo - Ana Xoc', fechaNacimiento: '2019-06-20', categoria: 'Sub-8', encargadoNombre: 'Demo - Miriam Xoc', encargadoTelefono: '50093005' },
+    { id: 'demo-alumno-6', nombre: 'Demo - Brandon Cotí', fechaNacimiento: '2012-11-02', categoria: 'Sub-16', encargadoNombre: 'Demo - Elvira Cotí', encargadoTelefono: '50093006' },
+    { id: 'demo-alumno-7', nombre: 'Demo - Katherin Ixcot', fechaNacimiento: '2009-08-18', categoria: 'Sub-18', encargadoNombre: 'Demo - Roberto Ixcot', encargadoTelefono: '50093007' },
   ];
   for (const a of alumnosData) {
     await prisma.alumno.upsert({
@@ -236,6 +266,9 @@ async function main() {
     { alumnoId: 'demo-alumno-2', mes: 9, anio: 2026, montoQ: 150, avisoVencidoEnviado: false, pago: { estado: EstadoPago.COMPLETADO, creadoEn: '2026-09-03T09:00:00', confirmadoEn: '2026-09-03T09:12:00' } },
     { alumnoId: 'demo-alumno-3', mes: 9, anio: 2026, montoQ: 150, avisoVencidoEnviado: true, pago: { estado: EstadoPago.PENDIENTE, creadoEn: '2026-09-05T09:00:00' } },
     { alumnoId: 'demo-alumno-4', mes: 9, anio: 2026, montoQ: 150, avisoVencidoEnviado: false, pago: { estado: EstadoPago.PENDIENTE, creadoEn: '2026-09-16T09:00:00' } },
+    { alumnoId: 'demo-alumno-5', mes: 9, anio: 2026, montoQ: 150, avisoVencidoEnviado: false, pago: { estado: EstadoPago.COMPLETADO, creadoEn: '2026-09-04T09:00:00', confirmadoEn: '2026-09-04T09:08:00' } },
+    { alumnoId: 'demo-alumno-6', mes: 9, anio: 2026, montoQ: 150, avisoVencidoEnviado: false, pago: { estado: EstadoPago.COMPLETADO, creadoEn: '2026-09-06T09:00:00', confirmadoEn: '2026-09-06T09:09:00' } },
+    { alumnoId: 'demo-alumno-7', mes: 9, anio: 2026, montoQ: 150, avisoVencidoEnviado: true, pago: { estado: EstadoPago.PENDIENTE, creadoEn: '2026-09-01T09:00:00' } },
   ];
   for (const m of mensualidades) {
     const registro = await prisma.academiaMensualidad.upsert({

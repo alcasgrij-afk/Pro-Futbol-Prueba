@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import './globals.css';
-import ChatWidget from '../components/ChatWidget';
+// ChatWidget: deshabilitado por ahora (no se usa), pero se deja el componente
+// y el import comentado para poder reactivarlo mas adelante sin recrearlo.
+// import ChatWidget from '../components/ChatWidget';
 
 export const metadata: Metadata = {
   // Titulo por defecto: el publico (landing, torneos, reservar, login, pago)
@@ -17,7 +19,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body>
         {children}
-        <ChatWidget />
       </body>
     </html>
   );
