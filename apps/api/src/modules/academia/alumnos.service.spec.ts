@@ -74,4 +74,27 @@ describe('AlumnosService', () => {
       await expect(service.desactivar('no-existe')).rejects.toThrow('Alumno no encontrado.');
     });
   });
+
+  describe('actualizar', () => {
+    it('solo envia a prisma los campos incluidos en el dto', async () => {
+      prisma.alumno.findUnique.mockResolvedValue({ id: 'alumno-1' });
+      await service.actualizar('alumno-1', { nombre: 'Mateo Garcia' });
+      expect(prisma.alumno.update).toHaveBeenCalledWith({
+        where: { id: 'alumno-1' },
+        data: { nombre: 'Mateo Garcia' },
+      });
+    });
+
+    it('convierte fechaNacimiento a Date cuando se actualiza', async () => {
+      prisma.alumno.findUnique.mockResolvedValue({ id: 'alumno-1' });
+      await service.actualizar('alumno-1', { fechaNacimiento: '2016-04-12' });
+      const data = prisma.alumno.update.mock.calls[0][0].data;
+      expect(data.fechaNacimiento).toEqual(new Date('2016-04-12'));
+    });
+
+    it('lanza error si el alumno no existe', async () => {
+      prisma.alumno.findUnique.mockResolvedValue(null);
+      await expect(service.actualizar('no-existe', { nombre: 'X' })).rejects.toThrow('Alumno no encontrado.');
+    });
+  });
 });

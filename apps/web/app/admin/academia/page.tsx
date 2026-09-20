@@ -8,17 +8,35 @@ import { hoyISOAnios } from '../../../lib/fechas';
 import ConfirmarModal from '../../../components/ConfirmarModal';
 import Skeleton from '../../../components/Skeleton';
 
+const FORM_VACIO = { nombre: '', fechaNacimiento: '', categoria: '', encargadoNombre: '', encargadoTelefono: '' };
+
+// Color estable por categoria (no depende de una lista fija de "Sub-N": la
+// categoria es texto libre, editable por el admin), asi cada una se distingue
+// de un vistazo en la tabla.
+const PALETA_CATEGORIA = [
+  'bg-blue-100 text-blue-800',
+  'bg-emerald-100 text-emerald-800',
+  'bg-amber-100 text-amber-800',
+  'bg-rose-100 text-rose-800',
+  'bg-violet-100 text-violet-800',
+  'bg-cyan-100 text-cyan-800',
+  'bg-orange-100 text-orange-800',
+  'bg-lime-100 text-lime-800',
+];
+
+function colorCategoria(categoria: string): string {
+  let hash = 0;
+  for (let i = 0; i < categoria.length; i++) hash = (hash * 31 + categoria.charCodeAt(i)) | 0;
+  return PALETA_CATEGORIA[Math.abs(hash) % PALETA_CATEGORIA.length];
+}
+
 export default function AcademiaPage() {
   const [alumnos, setAlumnos] = useState<AlumnoDTO[]>([]);
   const [cargando, setCargando] = useState(true);
   const [mostrarForm, setMostrarForm] = useState(false);
-  const [form, setForm] = useState({
-    nombre: '',
-    fechaNacimiento: '',
-    categoria: '',
-    encargadoNombre: '',
-    encargadoTelefono: '',
-  });
+  const [form, setForm] = useState(FORM_VACIO);
+  // Alumno que se esta editando (null = el formulario esta creando uno nuevo).
+  const [editando, setEditando] = useState<AlumnoDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   // Alumno a desactivar, pendiente de confirmacion (en vez de confirm() nativo)
@@ -36,16 +54,46 @@ export default function AcademiaPage() {
 
   useEffect(cargar, []);
 
-  async function crear() {
+  function alternarFormNuevo() {
+    if (mostrarForm) {
+      setMostrarForm(false);
+      setEditando(null);
+      return;
+    }
+    setForm(FORM_VACIO);
+    setEditando(null);
+    setError(null);
+    setMostrarForm(true);
+  }
+
+  function iniciarEdicion(a: AlumnoDTO) {
+    setEditando(a);
+    setForm({
+      nombre: a.nombre,
+      fechaNacimiento: a.fechaNacimiento.slice(0, 10),
+      categoria: a.categoria,
+      encargadoNombre: a.encargadoNombre,
+      encargadoTelefono: a.encargadoTelefono,
+    });
+    setError(null);
+    setMostrarForm(true);
+  }
+
+  async function guardar() {
     setError(null);
     setGuardando(true);
     try {
-      await api.crearAlumno({ ...form, categoria: form.categoria || undefined });
+      if (editando) {
+        await api.actualizarAlumno(editando.id, { ...form, categoria: form.categoria || undefined });
+      } else {
+        await api.crearAlumno({ ...form, categoria: form.categoria || undefined });
+      }
       setMostrarForm(false);
-      setForm({ nombre: '', fechaNacimiento: '', categoria: '', encargadoNombre: '', encargadoTelefono: '' });
+      setEditando(null);
+      setForm(FORM_VACIO);
       cargar();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo registrar al alumno.');
+      setError(err instanceof ApiError ? err.message : `No se pudo ${editando ? 'actualizar' : 'registrar'} al alumno.`);
     } finally {
       setGuardando(false);
     }
@@ -78,7 +126,7 @@ export default function AcademiaPage() {
             Mensualidades
           </Link>
           <button
-            onClick={() => setMostrarForm((v) => !v)}
+            onClick={alternarFormNuevo}
             className="px-3 py-1.5 bg-navy text-white rounded-md font-semibold transition-transform active:scale-[0.98]"
           >
             {mostrarForm ? 'Cancelar' : '+ Nuevo alumno'}
@@ -88,6 +136,7 @@ export default function AcademiaPage() {
 
       {mostrarForm && (
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4 max-w-xl">
+          <h2 className="text-sm font-bold text-navy">{editando ? `Editar a ${editando.nombre}` : 'Nuevo alumno'}</h2>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-1">
               <span className="block text-sm text-gray-700">Nombre del alumno *</span>
@@ -112,11 +161,11 @@ export default function AcademiaPage() {
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button
-            onClick={crear}
+            onClick={guardar}
             disabled={guardando || !form.nombre || !form.fechaNacimiento || !form.encargadoNombre || !form.encargadoTelefono}
             className="px-4 py-2 bg-navy text-white rounded-md text-sm font-semibold disabled:opacity-50 transition-transform active:scale-[0.98]"
           >
-            {guardando ? 'Guardando...' : 'Registrar alumno'}
+            {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Registrar alumno'}
           </button>
         </div>
       )}
@@ -154,13 +203,14 @@ export default function AcademiaPage() {
                 <tr key={a.id} className="border-t border-gray-100">
                   <td className="px-4 py-2 font-medium">{a.nombre}</td>
                   <td className="px-4 py-2">
-                    <span className="text-xs bg-yellow-100 text-yellow-800 rounded-full px-2 py-0.5">{a.categoria}</span>
+                    <span className={`text-xs rounded-full px-2 py-0.5 ${colorCategoria(a.categoria)}`}>{a.categoria}</span>
                   </td>
                   <td className="px-4 py-2">
                     {a.encargadoNombre}
                     <div className="text-xs text-gray-500">{a.encargadoTelefono}</div>
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right space-x-3 whitespace-nowrap">
+                    <button onClick={() => iniciarEdicion(a)} className="text-xs text-navy hover:underline">Editar</button>
                     <button onClick={() => setDesactivando(a)} className="text-xs text-red-600 hover:underline">Desactivar</button>
                   </td>
                 </tr>

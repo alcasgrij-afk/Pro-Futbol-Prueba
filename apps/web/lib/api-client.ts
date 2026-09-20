@@ -3,9 +3,12 @@
 import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO } from '@profutbol/shared-types';
 
 const TOKEN_KEY = 'profutbol_access_token';
+const REFRESH_KEY = 'profutbol_refresh_token';
 
-export function guardarToken(token: string) {
-  if (typeof window !== 'undefined') localStorage.setItem(TOKEN_KEY, token);
+export function guardarToken(token: string, refreshToken?: string) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TOKEN_KEY, token);
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
 }
 
 export function obtenerToken(): string | null {
@@ -13,8 +16,47 @@ export function obtenerToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+function obtenerRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(REFRESH_KEY);
+}
+
 export function borrarToken() {
-  if (typeof window !== 'undefined') localStorage.removeItem(TOKEN_KEY);
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+// El access token dura 15 minutos (JWT_ACCESS_EXPIRES_IN); sin esto, cualquier
+// pantalla admin abierta mas de 15 min empieza a recibir 401 en todos sus
+// fetches (se veia como "los datos desaparecen" hasta volver a loguearse).
+// refrescando evita disparar /auth/refresh en paralelo cuando varios fetches
+// 401 al mismo tiempo (ej. Promise.all de reportes).
+let refrescando: Promise<string | null> | null = null;
+
+async function refrescarAccessToken(): Promise<string | null> {
+  if (!refrescando) {
+    refrescando = (async () => {
+      const refreshToken = obtenerRefreshToken();
+      if (!refreshToken) return null;
+      try {
+        const r = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!r.ok) return null;
+        const data: LoginResponse = await r.json();
+        guardarToken(data.accessToken, data.refreshToken);
+        return data.accessToken;
+      } catch {
+        return null;
+      }
+    })();
+  }
+  const resultado = await refrescando;
+  refrescando = null;
+  return resultado;
 }
 
 class ApiError extends Error {
@@ -36,7 +78,7 @@ export interface BracketResultado {
   campeonNombre?: string;
 }
 
-async function request<T>(path: string, opciones: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, opciones: RequestInit = {}, reintentado = false): Promise<T> {
   const token = obtenerToken();
 
   const respuesta = await fetch(`/api${path}`, {
@@ -47,6 +89,12 @@ async function request<T>(path: string, opciones: RequestInit = {}): Promise<T> 
       ...opciones.headers,
     },
   });
+
+  if (respuesta.status === 401 && !reintentado) {
+    const nuevoToken = await refrescarAccessToken();
+    if (nuevoToken) return request<T>(path, opciones, true);
+    borrarToken();
+  }
 
   if (!respuesta.ok) {
     const cuerpo: ApiErrorResponse = await respuesta.json().catch(() => ({
@@ -128,6 +176,14 @@ export const api = {
 
   desactivarAlumno: (id: string) => request<AlumnoDTO>(`/academia/alumnos/${id}/desactivar`, { method: 'PATCH' }),
 
+  actualizarAlumno: (
+    id: string,
+    datos: { nombre?: string; fechaNacimiento?: string; categoria?: string; encargadoNombre?: string; encargadoTelefono?: string },
+  ) => {
+    const body = Object.fromEntries(Object.entries(datos).filter(([, v]) => v !== '' && v != null));
+    return request<AlumnoDTO>(`/academia/alumnos/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  },
+
   listarMensualidadesDelMes: (mes: number, anio: number) =>
     request<AcademiaMensualidadDTO[]>(`/academia/mensualidades?mes=${mes}&anio=${anio}`),
 
@@ -158,10 +214,18 @@ export const api = {
    * en el navegador.
    */
   async descargarExportacion(path: string, nombreSugerido: string) {
-    const token = obtenerToken();
-    const respuesta = await fetch(`/api${path}`, {
+    let token = obtenerToken();
+    let respuesta = await fetch(`/api${path}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
+    if (respuesta.status === 401) {
+      token = await refrescarAccessToken();
+      if (token) {
+        respuesta = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${token}` } });
+      } else {
+        borrarToken();
+      }
+    }
     if (!respuesta.ok) throw new ApiError(respuesta.status, 'No se pudo generar el archivo.');
 
     const blob = await respuesta.blob();

@@ -17,7 +17,7 @@ export default function LoginPage() {
     setCargando(true);
     try {
       const respuesta = await api.login(email, password);
-      guardarToken(respuesta.accessToken);
+      guardarToken(respuesta.accessToken, respuesta.refreshToken);
       router.push('/admin');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesion.');

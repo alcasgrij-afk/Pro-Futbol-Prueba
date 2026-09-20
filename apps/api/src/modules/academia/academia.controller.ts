@@ -4,6 +4,7 @@ import { RolUsuario } from '@profutbol/shared-types';
 import { AlumnosService } from './alumnos.service';
 import { MensualidadesService } from './mensualidades.service';
 import { CrearAlumnoDto } from './dto/crear-alumno.dto';
+import { ActualizarAlumnoDto } from './dto/actualizar-alumno.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 
 // Todo el modulo de academia es interno (a diferencia de reservas/torneos,
@@ -42,6 +43,12 @@ export class AcademiaController {
   @Patch('alumnos/:id/desactivar')
   desactivarAlumno(@Param('id') id: string) {
     return this.alumnosService.desactivar(id);
+  }
+
+  @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
+  @Patch('alumnos/:id')
+  actualizarAlumno(@Param('id') id: string, @Body() dto: ActualizarAlumnoDto) {
+    return this.alumnosService.actualizar(id, dto);
   }
 
   @Get('mensualidades')

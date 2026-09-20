@@ -104,7 +104,12 @@ export default function ReservarPage() {
   }, [mensajes]);
 
   // --- Enviar mensaje ---
-  const enviar = useCallback(async (texto: string, skipMsg = false) => {
+  // mostrarRespuesta=false se usa solo al auto-enviar cancha+hora ya elegidas
+  // en las casillas: el bot responde con la lista de "horarios disponibles"
+  // para esa cancha, que seria redundante (el horario ya se eligio arriba) —
+  // se sigue enviando (mantiene el estado de la conversacion en el backend),
+  // solo no se muestra esa respuesta puntual en el chat.
+  const enviar = useCallback(async (texto: string, skipMsg = false, mostrarRespuesta = true) => {
     const t = texto.trim();
     if (!t || cargando) return;
 
@@ -124,7 +129,7 @@ export default function ReservarPage() {
 
       const data: { sessionId: string; mensajes: MensajeSaliente[] } = await res.json();
       localStorage.setItem(SESSION_KEY, data.sessionId);
-      setMensajes((prev) => [...prev, ...normalizar(data.mensajes)]);
+      if (mostrarRespuesta) setMensajes((prev) => [...prev, ...normalizar(data.mensajes)]);
     } catch {
       setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'Ocurrió un error. Intentá de nuevo.' }]);
     } finally {
@@ -182,7 +187,7 @@ export default function ReservarPage() {
     if (cargando) return;
     setChatIniciado(true);
     if (slotSeleccionado) {
-      await enviar(slotSeleccionado.canchaNombre, true);
+      await enviar(slotSeleccionado.canchaNombre, true, false);
       await enviar(slotSeleccionado.horaInicio, true);
     } else {
       enviar('Hola', true);
