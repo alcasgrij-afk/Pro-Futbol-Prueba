@@ -36,11 +36,16 @@ export default function WeekDatePicker({
   confirmed,
   selectedSlot,
   onSelectSlot,
+  locked = false,
 }: {
   value: string;
   confirmed: boolean;
   selectedSlot: { canchaId: string; horaInicio: string } | null;
   onSelectSlot: (slot: SlotElegido) => void;
+  // Una vez elegido un horario, el resto de las casillas se deshabilita
+  // (visualmente y al click) para que el usuario se enfoque en esa unica
+  // opcion; se desbloquea desde afuera con el boton "Cambiar horario".
+  locked?: boolean;
 }) {
   const [canchas, setCanchas] = useState<Cancha[] | null>(null);
   const [mapa, setMapa] = useState<Mapa>({});
@@ -208,11 +213,12 @@ export default function WeekDatePicker({
                                       key={key}
                                       type="button"
                                       aria-disabled="true"
+                                      disabled={locked}
                                       title={`${b.horaInicio}–${b.horaFin}: No disponible`}
-                                      onClick={() => tocarNoDisponible(key)}
+                                      onClick={locked ? undefined : () => tocarNoDisponible(key)}
                                       className={`aspect-square rounded-[5px] border-0 p-0 transition-colors duration-300 ${
                                         flashKey === key ? 'bg-gray-400' : 'bg-red'
-                                      }`}
+                                      } ${locked ? 'opacity-30 cursor-not-allowed' : ''}`}
                                     />
                                   );
                                 }
@@ -223,17 +229,23 @@ export default function WeekDatePicker({
                                     key={key}
                                     type="button"
                                     aria-pressed={esElegido}
+                                    disabled={locked}
                                     title={`${b.horaInicio}–${b.horaFin}: Disponible`}
-                                    onClick={() =>
-                                      onSelectSlot({
-                                        fecha: fechaISO,
-                                        canchaId: c.id,
-                                        canchaNombre: c.nombre,
-                                        horaInicio: b.horaInicio,
-                                        horaFin: b.horaFin,
-                                      })
+                                    onClick={
+                                      locked
+                                        ? undefined
+                                        : () =>
+                                            onSelectSlot({
+                                              fecha: fechaISO,
+                                              canchaId: c.id,
+                                              canchaNombre: c.nombre,
+                                              horaInicio: b.horaInicio,
+                                              horaFin: b.horaFin,
+                                            })
                                     }
-                                    className={`aspect-square rounded-[5px] border-0 p-0 transition-all hover:brightness-110 ${
+                                    className={`aspect-square rounded-[5px] border-0 p-0 transition-all ${
+                                      locked && !esElegido ? 'opacity-30 cursor-not-allowed' : 'hover:brightness-110'
+                                    } ${
                                       esElegido ? 'relative z-10 scale-110 bg-[#d8b32d] shadow-[0_0_0_2px_#ffffff]' : 'bg-emerald-500'
                                     }`}
                                   />

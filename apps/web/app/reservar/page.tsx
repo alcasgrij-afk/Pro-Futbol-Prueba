@@ -61,6 +61,9 @@ export default function ReservarPage() {
   const [slotSeleccionado, setSlotSeleccionado] = useState<SlotElegido | null>(null);
   // El boton "Empezar a reservar" se resalta una sola vez al elegir horario.
   const [resaltarInicio, setResaltarInicio] = useState(false);
+  // true tras presionar "Empezar a reservar": oculta el selector de horarios
+  // (el horario ya quedo elegido arriba, no hace falta seguir mostrandolo).
+  const [chatIniciado, setChatIniciado] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const finRef = useRef<HTMLDivElement>(null);
 
@@ -177,6 +180,7 @@ export default function ReservarPage() {
   // para llegar directo a la confirmacion de precio, sin volver a preguntar.
   const comenzarChat = useCallback(async () => {
     if (cargando) return;
+    setChatIniciado(true);
     if (slotSeleccionado) {
       await enviar(slotSeleccionado.canchaNombre, true);
       await enviar(slotSeleccionado.horaInicio, true);
@@ -184,6 +188,15 @@ export default function ReservarPage() {
       enviar('Hola', true);
     }
   }, [cargando, slotSeleccionado, enviar]);
+
+  // Vuelve a habilitar el selector de horarios de arriba para elegir uno
+  // nuevo: limpia la eleccion actual y arranca el chat de cero.
+  const cambiarHorario = useCallback(() => {
+    setSlotSeleccionado(null);
+    setChatIniciado(false);
+    setMensajes([]);
+    localStorage.removeItem(SESSION_KEY);
+  }, []);
 
   function encogerTextarea(e: { currentTarget: HTMLTextAreaElement }) {
     const el = e.currentTarget;
@@ -321,13 +334,17 @@ export default function ReservarPage() {
             ))}
           </div>
 
-          {/* Selector semanal: elige fecha+cancha+horario de una vez */}
-          <WeekDatePicker
-            value={fecha}
-            confirmed={fechaConfirmada}
-            selectedSlot={slotSeleccionado ? { canchaId: slotSeleccionado.canchaId, horaInicio: slotSeleccionado.horaInicio } : null}
-            onSelectSlot={elegirSlot}
-          />
+          {/* Selector semanal: elige fecha+cancha+horario de una vez. Se oculta
+              tras arrancar el chat: el horario ya quedo elegido arriba. */}
+          {!chatIniciado && (
+            <WeekDatePicker
+              value={fecha}
+              confirmed={fechaConfirmada}
+              selectedSlot={slotSeleccionado ? { canchaId: slotSeleccionado.canchaId, horaInicio: slotSeleccionado.horaInicio } : null}
+              onSelectSlot={elegirSlot}
+              locked={!!slotSeleccionado}
+            />
+          )}
         </div>
       </section>
 
@@ -349,6 +366,14 @@ export default function ReservarPage() {
                   </div>
                 </div>
               </div>
+              {slotSeleccionado && (
+                <button
+                  onClick={cambiarHorario}
+                  className="flex-none min-h-11 rounded-full border border-[#bddff7] bg-white text-[#0d76e8] px-3 py-1.5 text-xs font-black hover:bg-[#f7fcff] transition-colors"
+                >
+                  Cambiar horario
+                </button>
+              )}
             </div>
 
             <div className="relative flex-1 min-h-0 flex flex-col bg-[#eef8ff]">
@@ -377,13 +402,26 @@ export default function ReservarPage() {
                         <Image src="/profutbollogo.png" alt="" width={26} height={26} className="w-[85%] h-[85%] object-contain" />
                       </div>
                       <div className="px-3.5 py-3 rounded-[17px] rounded-bl-[6px] bg-white border border-[#d9ebf8] text-[#173f70] text-sm leading-relaxed shadow-[0_4px_14px_rgba(4,49,104,.05)]">
-                        {conectado === null
-                          ? 'Verificando conexión…'
-                          : !fechaConfirmada
-                            ? 'Elegí una fecha arriba y te muestro los horarios disponibles.'
-                            : slotSeleccionado
-                              ? `¡Perfecto! Elegiste ${slotSeleccionado.canchaNombre} el ${new Date(`${slotSeleccionado.fecha}T12:00:00`).toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${slotSeleccionado.horaInicio}. Tocá "Empezar a reservar" para confirmar.`
-                              : '¡Hola! Estoy aquí para ayudarte a reservar tu cancha. ¿Qué cancha preferís?'}
+                        {conectado === null ? (
+                          'Verificando conexión…'
+                        ) : !fechaConfirmada ? (
+                          'Elegí una fecha arriba y te muestro los horarios disponibles.'
+                        ) : slotSeleccionado ? (
+                          <>
+                            ¡Perfecto! Elegiste <strong className="font-black">{slotSeleccionado.canchaNombre}</strong> el{' '}
+                            <strong className="font-black underline">
+                              {new Date(`${slotSeleccionado.fecha}T12:00:00`).toLocaleDateString('es-GT', {
+                                weekday: 'long',
+                                day: 'numeric',
+                                month: 'long',
+                              })}
+                            </strong>{' '}
+                            a las <strong className="font-black underline">{slotSeleccionado.horaInicio}</strong>. Click en{' '}
+                            <span className="font-black text-[#0d76e8]">&quot;Empezar a reservar&quot;</span> para confirmar.
+                          </>
+                        ) : (
+                          '¡Hola! Estoy aquí para ayudarte a reservar tu cancha. ¿Qué cancha preferís?'
+                        )}
                         <span className="block mt-1 text-[10px] opacity-60 text-right">
                           {new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
