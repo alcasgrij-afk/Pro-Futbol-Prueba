@@ -6,6 +6,12 @@ body {
   @apply bg-gray-50 text-gray-800;
 }
 
+/* El landing tiene un header sticky (~72px); sin esto los anchors (#reservar,
+   #canchas, etc.) dejan el titulo de la seccion tapado detras del header. */
+html {
+  scroll-padding-top: 6rem;
+}
+
 /* Shimmer skeleton — reemplaza los "Cargando..." por placeholders del
    tamano real de la lista/table que se esta cargando. */
 @keyframes skeleton-shimmer {

@@ -2,9 +2,32 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { TipoCancha, type CanchaDTO } from '@profutbol/shared-types';
+
+// Precios de respaldo si /api/canchas no responde: deben coincidir con el
+// seed real (ver apps/api/prisma/seed.ts) para no repetir el bug de mostrar
+// un precio fijo que no es el real.
+const PRECIOS_RESPALDO: Record<TipoCancha, { precioAnticipadoQ: number; precioSedeQ: number }> = {
+  [TipoCancha.FUTBOL_5]: { precioAnticipadoQ: 250, precioSedeQ: 300 },
+  [TipoCancha.FUTBOL_7]: { precioAnticipadoQ: 350, precioSedeQ: 420 },
+};
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Precios reales de /api/canchas: el precio mostrado aqui venia hardcodeado
+  // ("Q350" para ambas canchas) y no coincidia con el precio real de reserva.
+  const [canchas, setCanchas] = useState<CanchaDTO[] | null>(null);
+
+  useEffect(() => {
+    fetch('/api/canchas', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then(setCanchas)
+      .catch(() => setCanchas([]));
+  }, []);
+
+  function precioDe(tipo: TipoCancha) {
+    return canchas?.find((c) => c.tipo === tipo) ?? PRECIOS_RESPALDO[tipo];
+  }
 
   useEffect(() => {
     // Smooth scroll for anchor links
@@ -89,6 +112,10 @@ export default function LandingPage() {
             priority
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#092a5c]/95 via-[#0d3a78]/90 to-[#0f468c]/20"></div>
+          {/* hero.jpg es un flyer de redes con texto/logo propios pegados en la
+              franja inferior; en movil (donde no queda recortada por object-cover)
+              esa franja compite con el h1/CTA reales de encima. Se oscurece aparte. */}
+          <div className="absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-[#06213f] from-10% via-[#06213f]/85 via-45% to-transparent"></div>
 
           <div className="relative z-10 max-w-[1180px] mx-auto px-6 py-20 w-full">
             <div className="max-w-[560px]">
@@ -126,14 +153,17 @@ export default function LandingPage() {
               <p className="text-[#5b6b85] leading-relaxed">En solo 3 pasos tendrás tu cancha lista.</p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-9 items-start">
+            <div className="grid md:grid-cols-3 gap-9 items-start relative">
+              {/* Linea que conecta los 3 pasos: rompe el bloque de 3 columnas
+                  centradas identicas, ademas de leerse como una secuencia real. */}
+              <div className="hidden md:block absolute top-10 left-[16.5%] right-[16.5%] h-0.5 bg-[#dbe9fb]" aria-hidden />
               {[
                 { n: 1, icon: 'M12 2a15 15 0 0 1 0 20M2 12h20', title: 'Elige tu cancha', desc: 'Selecciona el tipo de cancha que prefieres (5 vs 5 o 7 vs 7).' },
                 { n: 2, icon: 'M16 2v4M8 2v4M3 10h18', title: 'Selecciona horario', desc: 'Revisa la disponibilidad y elige el horario que más te convenga.' },
                 { n: 3, icon: 'm9 12 2 2 4-4', title: 'Confirma tu reserva', desc: 'Completa tus datos y recibe la confirmación al instante.' }
-              ].map((step, i) => (
-                <div key={step.n} className="text-center px-3">
-                  <div className="relative w-20 h-20 rounded-full bg-[#f2f8ff] flex items-center justify-center mx-auto mb-5">
+              ].map((step) => (
+                <div key={step.n} className="relative text-left px-3">
+                  <div className="relative w-20 h-20 rounded-full bg-[#f2f8ff] flex items-center justify-center mb-5">
                     <svg className="w-8 h-8 stroke-[#0f59b3]" viewBox="0 0 24 24" fill="none" strokeWidth="2">
                       {step.n === 1 && <><circle cx="12" cy="12" r="10"/><path d={step.icon}/></>}
                       {step.n === 2 && <><rect x="3" y="4" width="18" height="18" rx="2"/><path d={step.icon}/></>}
@@ -144,7 +174,7 @@ export default function LandingPage() {
                     </div>
                   </div>
                   <h3 className="text-lg font-bold text-[#0a3d7d] mb-2">{step.title}</h3>
-                  <p className="text-sm text-[#5b6b85] leading-relaxed">{step.desc}</p>
+                  <p className="text-sm text-[#5b6b85] leading-relaxed max-w-[240px]">{step.desc}</p>
                 </div>
               ))}
             </div>
@@ -212,32 +242,37 @@ export default function LandingPage() {
 
             <div className="grid md:grid-cols-2 gap-7 max-w-[820px] mx-auto">
               {[
-                { title: 'Cancha 5 vs 5', precio: 'Q350' },
-                { title: 'Cancha 7 vs 7', precio: 'Q350' }
-              ].map((plan, i) => (
-                <div key={i} className="bg-white rounded-[22px] p-8 shadow-[0_18px_40px_rgba(6,32,70,.35)] border-t-4 border-[#d8b32d]">
-                  <h3 className="text-lg font-bold text-[#0a3d7d] mb-3">{plan.title}</h3>
-                  <div className="text-[34px] font-bold text-[#0f59b3] mb-5">
-                    {plan.precio} <span className="text-base font-medium text-[#5b6b85]">/hora</span>
+                { tipo: TipoCancha.FUTBOL_5, title: 'Cancha 5 vs 5', jugadores: '10', nota: 'Ideal para grupos chicos y partidos rápidos.' },
+                { tipo: TipoCancha.FUTBOL_7, title: 'Cancha 7 vs 7', jugadores: '14', nota: 'Ideal para torneos y grupos grandes.' },
+              ].map((plan) => {
+                const precio = precioDe(plan.tipo);
+                return (
+                  <div key={plan.tipo} className="bg-white rounded-[22px] p-8 shadow-[0_18px_40px_rgba(6,32,70,.35)] border-t-4 border-[#d8b32d]">
+                    <h3 className="text-lg font-bold text-[#0a3d7d] mb-1">{plan.title}</h3>
+                    <p className="text-xs text-[#5b6b85] mb-3">{plan.nota}</p>
+                    <div className="text-[34px] font-bold text-[#0f59b3] leading-none">
+                      Q{precio.precioAnticipadoQ} <span className="text-base font-medium text-[#5b6b85]">/hora en línea</span>
+                    </div>
+                    <div className="text-sm text-[#5b6b85] mb-5">Q{precio.precioSedeQ}/hora pagando en sede</div>
+                    <div className="space-y-3 mb-6">
+                      {[plan.title, `Hasta ${plan.jugadores} jugadores`, 'Uso exclusivo'].map((item, j) => (
+                        <div key={j} className="flex items-center gap-3 text-sm text-[#33475f]">
+                          <svg className="w-4 h-4 stroke-[#1668c9] shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
+                          </svg>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                    <Link
+                      href="/reservar"
+                      className="block w-full text-center bg-[#d8b32d] text-[#0a3d7d] px-6 py-3 rounded-full font-semibold hover:bg-[#d0a92a] transition-all hover:-translate-y-0.5"
+                    >
+                      Reservar
+                    </Link>
                   </div>
-                  <div className="space-y-3 mb-6">
-                    {[plan.title, `Hasta ${i === 0 ? '10' : '14'} jugadores`, 'Uso exclusivo'].map((item, j) => (
-                      <div key={j} className="flex items-center gap-3 text-sm text-[#33475f]">
-                        <svg className="w-4 h-4 stroke-[#1668c9] shrink-0" viewBox="0 0 24 24" fill="none" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
-                        </svg>
-                        {item}
-                      </div>
-                    ))}
-                  </div>
-                  <Link
-                    href="/reservar"
-                    className="block w-full text-center bg-[#d8b32d] text-[#0a3d7d] px-6 py-3 rounded-full font-semibold hover:bg-[#d0a92a] transition-all hover:-translate-y-0.5"
-                  >
-                    Reservar
-                  </Link>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -252,11 +287,12 @@ export default function LandingPage() {
 
             <div className="grid md:grid-cols-3 gap-6">
               {[
-                { stars: 5, quote: 'Las canchas están en excelente estado y el proceso de reserva es súper fácil. ¡100% recomendado!', name: 'Diego Ramírez', role: 'Jugador amateur', initials: 'DR' },
+                { stars: 5, quote: 'Las canchas están en excelente estado y el proceso de reserva es súper fácil. Recomendado.', name: 'Diego Ramírez', role: 'Jugador amateur', initials: 'DR' },
                 { stars: 5, quote: 'Excelente atención y muy buena ubicación. Ideal para partidos con amigos o torneos.', name: 'Carlos Méndez', role: 'Capitán de equipo', initials: 'CM' },
                 { stars: 5, quote: 'Siempre limpio, seguro y con buen ambiente. Nuestras tardes de fútbol son aquí.', name: 'María López', role: 'Jugadora', initials: 'ML' }
               ].map((test, i) => (
-                <div key={i} className="bg-white rounded-[14px] p-6 shadow-[0_10px_30px_rgba(15,60,130,.08)]">
+                // Offset vertical alterno: rompe la fila de 3 tarjetas identicas.
+                <div key={i} className={`bg-white rounded-[14px] p-6 shadow-[0_10px_30px_rgba(15,60,130,.08)] ${i === 1 ? 'md:mt-8' : ''}`}>
                   <div className="text-[#f5b942] text-sm mb-3.5 tracking-wider">★★★★★</div>
                   <p className="text-sm text-[#122447] leading-relaxed mb-5">{test.quote}</p>
                   <div className="flex items-center gap-3">
