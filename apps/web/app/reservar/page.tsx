@@ -64,8 +64,17 @@ export default function ReservarPage() {
   // true tras presionar "Empezar a reservar": oculta el selector de horarios
   // (el horario ya quedo elegido arriba, no hace falta seguir mostrandolo).
   const [chatIniciado, setChatIniciado] = useState(false);
+  // El server (Vercel, UTC) y el navegador (hora local de GT) nunca coinciden
+  // en la hora actual: renderizar new Date() directamente en el mensaje
+  // inicial rompia la hidratacion (React error #418) en cada carga. Se
+  // calcula solo en el cliente, despues del mount.
+  const [horaInicial, setHoraInicial] = useState('');
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const finRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setHoraInicial(new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false }));
+  }, []);
 
   // --- Readiness check ---
   const verificar = useCallback(async () => {
@@ -278,13 +287,13 @@ export default function ReservarPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f7fbff] to-[#edf7ff] text-[#173f70] font-[Inter,system-ui,sans-serif]">
+    <div className="min-h-screen bg-gradient-to-b from-[#f7fbff] to-[#edf7ff] text-[#173f70]">
       <a href="#chatArea" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:text-[#173f70] focus:px-3 focus:py-2 rounded">
         Saltar al chat de reservas
       </a>
 
       {/* Top bar */}
-      <header className="sticky top-0 z-50 bg-white/94 backdrop-blur-md border-b border-[rgba(10,80,145,.09)]">
+      <header className="sticky top-0 z-50 bg-white/97 backdrop-blur-md border-b border-[rgba(10,80,145,.09)]">
         <div className="max-w-[1180px] mx-auto px-4 min-h-[68px] flex items-center justify-between gap-5">
           <Link href="/" aria-label="Pro Futbol Antigua" className="flex items-center shrink-0">
             <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={453} height={162} className="h-[50px] w-auto max-sm:h-[44px]" />
@@ -317,7 +326,8 @@ export default function ReservarPage() {
           <h1 className="mt-2 mb-2.5 text-4xl sm:text-5xl leading-none tracking-tight font-bold drop-shadow-lg">Reservá tu cancha</h1>
           <p className="mx-auto max-w-[650px] text-[#d4e5f8] text-base drop-shadow-sm">Elegí tu cancha, horario y forma de pago. Es rápido y fácil.</p>
 
-          <div className="mt-7 flex justify-start sm:justify-center items-center gap-2.5 overflow-x-auto flex-nowrap sm:flex-wrap pb-0.5">
+          <div className="relative mt-7">
+          <div className="flex justify-start sm:justify-center items-center gap-2.5 overflow-x-auto flex-nowrap sm:flex-wrap pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {pasos.map((s) => (
               <div
                 key={s.n}
@@ -337,6 +347,10 @@ export default function ReservarPage() {
                 {s.t}
               </div>
             ))}
+          </div>
+          {/* Hint de que hay mas pasos scrolleando: en movil la fila se corta
+              a mitad de palabra sin avisar que sigue. */}
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0.5 w-10 bg-gradient-to-l from-[#032c65] to-transparent sm:hidden" aria-hidden />
           </div>
 
           {/* Selector semanal: elige fecha+cancha+horario de una vez. Se oculta
@@ -427,9 +441,7 @@ export default function ReservarPage() {
                         ) : (
                           '¡Hola! Estoy aquí para ayudarte a reservar tu cancha. ¿Qué cancha preferís?'
                         )}
-                        <span className="block mt-1 text-[10px] opacity-60 text-right">
-                          {new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                        </span>
+                        <span className="block mt-1 text-[10px] opacity-60 text-right">{horaInicial}</span>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 pl-9">
@@ -506,13 +518,20 @@ export default function ReservarPage() {
               <p className="m-0 text-xs text-[#6b89ab]">Todo lo importante, en un solo lugar.</p>
             </div>
             {[
-              { icon: '💬', t: 'Atención en línea', d: 'Rápida y segura' },
-              { icon: '🛡', t: 'Tu reserva, garantizada', d: 'Sin complicaciones' },
-              { icon: '◷', t: 'Horarios disponibles', d: 'Lun–Sáb · 2:00 p.m.–10:00 p.m.' },
-              { icon: '📍', t: 'Te esperamos', d: 'C. de Chajón 4, Antigua Guatemala' },
+              // Iconos SVG (no emoji) para que combinen con el resto de la
+              // pagina (header, stepper, WeekDatePicker) en vez de detonar
+              // como el unico elemento con iconografia distinta.
+              { icon: <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />, t: 'Atención en línea', d: 'Rápida y segura' },
+              { icon: <><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z" /><path d="m9 12 2 2 4-4" /></>, t: 'Tu reserva, garantizada', d: 'Sin complicaciones' },
+              { icon: <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>, t: 'Horarios disponibles', d: 'Lun–Sáb · 2:00 p.m.–10:00 p.m.' },
+              { icon: <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0ZM12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />, t: 'Te esperamos', d: 'C. de Chajón 4, Antigua Guatemala' },
             ].map((r) => (
               <div key={r.t} className="px-4 py-3.5 flex gap-3 border-b border-[#edf4fa]">
-                <div className="w-[38px] h-[38px] rounded-xl bg-[#edf8ff] text-[#0d76e8] grid place-items-center flex-none">{r.icon}</div>
+                <div className="w-[38px] h-[38px] rounded-xl bg-[#edf8ff] text-[#0d76e8] grid place-items-center flex-none">
+                  <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    {r.icon}
+                  </svg>
+                </div>
                 <div>
                   <strong className="block text-xs mb-0.5">{r.t}</strong>
                   <span className="block text-[11px] text-[#6b89ab] leading-relaxed">{r.d}</span>
