@@ -150,9 +150,9 @@ export default function ReservarPage() {
   // para esa cancha, que seria redundante (el horario ya se eligio arriba) —
   // se sigue enviando (mantiene el estado de la conversacion en el backend),
   // solo no se muestra esa respuesta puntual en el chat.
-  const enviar = useCallback(async (texto: string, skipMsg = false, mostrarRespuesta = true) => {
+  const enviar = useCallback(async (texto: string, skipMsg = false, mostrarRespuesta = true): Promise<MensajeSaliente[] | null> => {
     const t = texto.trim();
-    if (!t || cargando) return;
+    if (!t || cargando) return null;
 
     if (!skipMsg) setMensajes((prev) => [...prev, { tipo: 'texto', texto: t, origen: 'usuario' }]);
     setEscribiendo('');
@@ -171,8 +171,10 @@ export default function ReservarPage() {
       const data: { sessionId: string; mensajes: MensajeSaliente[] } = await res.json();
       localStorage.setItem(SESSION_KEY, data.sessionId);
       if (mostrarRespuesta) setMensajes((prev) => [...prev, ...normalizar(data.mensajes)]);
+      return data.mensajes;
     } catch {
       setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'Ocurrió un error. Intentá de nuevo.', origen: 'bot' }]);
+      return null;
     } finally {
       setCargando(false);
       // No reenfocar aca: en movil, reabrir el teclado en cada respuesta
@@ -184,11 +186,12 @@ export default function ReservarPage() {
   const enviarOpcion = useCallback((o: { id: string; titulo: string }) => enviar(o.id), [enviar]);
 
   // --- Pago (mismo que ChatWidget) ---
+  // La cuenta regresiva arranca al enviar el contacto (ahi el backend crea la
+  // reserva y el hold real de 15 min empieza a correr), no aca: si arrancara
+  // recien al tocar "Pagar ahora" el timer mostrado se desincroniza del limite
+  // real del servidor por el tiempo que el usuario tarde en llegar hasta aca.
   const pagar = useCallback(async (m: Mensaje) => {
     if (!m.gateway || !m.reservaId) return;
-    // Arranca la cuenta regresiva visual desde el click, no desde que aparecio
-    // el mensaje (el usuario pudo tardar en leerlo antes de tocar el boton).
-    setPagoIniciado({ reservaId: m.reservaId, inicioMs: Date.now() });
     try {
       const res = await fetch(`/api/payments/${m.gateway.toLowerCase()}/create`, {
         method: 'POST',
@@ -226,41 +229,46 @@ export default function ReservarPage() {
     return () => clearTimeout(t);
   }, [slotSeleccionado]);
 
-  // Arranca la conversacion. Si ya se eligio cancha+horario en el picker, los
-  // manda en dos mensajes silenciosos (el bot los reconoce como texto libre)
-  // para llegar directo a la confirmacion de precio, sin volver a preguntar.
+  // Arranca la conversacion mandando cancha+horario ya elegidos en el picker
+  // como dos mensajes silenciosos (el bot los reconoce como texto libre) para
+  // llegar directo a la confirmacion de precio, sin volver a preguntar.
+  // El boton que dispara esto esta disabled mientras !fechaConfirmada, y
+  // fechaConfirmada solo se pone en true junto con slotSeleccionado (ver
+  // elegirSlot), asi que si llegamos aca siempre hay un slot elegido.
   const comenzarChat = useCallback(async () => {
-    if (cargando) return;
+    if (cargando || !slotSeleccionado) return;
     setChatIniciado(true);
-    if (slotSeleccionado) {
-      // Se guarda en el historial (antes vivia solo en el estado "sin
-      // mensajes" y desaparecia apenas llegaba la primera respuesta real,
-      // perdiendo el rastro de que cancha/fecha/hora habia elegido el usuario).
-      const fechaLarga = new Date(`${slotSeleccionado.fecha}T12:00:00`).toLocaleDateString('es-GT', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-      });
-      setMensajes((prev) => [
-        ...prev,
-        {
-          tipo: 'texto',
-          origen: 'bot',
-          texto: `¡Perfecto! Elegiste ${slotSeleccionado.canchaNombre} el ${fechaLarga} a las ${slotSeleccionado.horaInicio}.`,
-          contenido: (
-            <>
-              ¡Perfecto! Elegiste <strong className="font-black">{slotSeleccionado.canchaNombre}</strong> el{' '}
-              <strong className="font-black underline">{fechaLarga}</strong> a las{' '}
-              <strong className="font-black underline">{slotSeleccionado.horaInicio}</strong>.
-            </>
-          ),
-        },
-      ]);
-      await enviar(slotSeleccionado.canchaNombre, true, false);
-      await enviar(slotSeleccionado.horaInicio, true);
-    } else {
-      enviar('Hola', true);
-    }
+    // Arranca siempre de cero: si quedaba una sessionId vieja en localStorage
+    // (ej. se volvio a esta pagina despues de completar un pago anterior sin
+    // pasar por "Cambiar horario"), reusarla mezclaba el estado de esa
+    // conversacion terminada con la nueva y el bot volvia a INICIO ("Que
+    // cancha deseas reservar?") en vez de ir directo a la confirmacion.
+    localStorage.removeItem(SESSION_KEY);
+    setPagoIniciado(null);
+
+    const fechaLarga = new Date(`${slotSeleccionado.fecha}T12:00:00`).toLocaleDateString('es-GT', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    // Reemplaza el historial (no lo extiende): junto con la sessionId nueva,
+    // esto asegura que "Reservar Ahora" siempre es un reinicio limpio.
+    setMensajes([
+      {
+        tipo: 'texto',
+        origen: 'bot',
+        texto: `¡Perfecto! Elegiste ${slotSeleccionado.canchaNombre} el ${fechaLarga} a las ${slotSeleccionado.horaInicio}.`,
+        contenido: (
+          <>
+            ¡Perfecto! Elegiste <strong className="font-black">{slotSeleccionado.canchaNombre}</strong> el{' '}
+            <strong className="font-black underline">{fechaLarga}</strong> a las{' '}
+            <strong className="font-black underline">{slotSeleccionado.horaInicio}</strong>.
+          </>
+        ),
+      },
+    ]);
+    await enviar(slotSeleccionado.canchaNombre, true, false);
+    await enviar(slotSeleccionado.horaInicio, true);
   }, [cargando, slotSeleccionado, enviar]);
 
   // Vuelve a habilitar el selector de horarios de arriba para elegir uno
@@ -287,12 +295,19 @@ export default function ReservarPage() {
     if (areaRef.current) areaRef.current.style.height = 'auto';
   }
 
-  function enviarContacto() {
+  async function enviarContacto() {
     const nombre = contactoNombre.trim();
     if (!nombre || contactoTelefono.length !== 8) return;
-    enviar(`${nombre}, ${contactoTelefono}`);
     setContactoNombre('');
     setContactoTelefono('');
+    // La cuenta regresiva arranca aca (no al tocar "Pagar ahora" despues):
+    // enviar el contacto es lo que hace que el backend cree la reserva y
+    // empiece a correr el hold real de 15 min (ver reservas.service.ts,
+    // expiraEn), asi que este es el momento que realmente coincide con el
+    // limite del servidor.
+    const respuesta = await enviar(`${nombre}, ${contactoTelefono}`);
+    const mensajePago = respuesta?.find((m) => m.tipo === 'pago') as { reservaId: string } | undefined;
+    if (mensajePago) setPagoIniciado({ reservaId: mensajePago.reservaId, inicioMs: Date.now() });
   }
 
   const renderMensaje = (m: Mensaje, i: number, esUltimo: boolean) => {
@@ -348,12 +363,14 @@ export default function ReservarPage() {
               <input
                 type="tel"
                 inputMode="numeric"
-                value={contactoTelefono}
+                // El estado guarda solo los 8 digitos (lo que se manda al bot);
+                // el guion es puramente de presentacion, insertado al mostrar.
+                value={contactoTelefono.length > 4 ? `${contactoTelefono.slice(0, 4)}-${contactoTelefono.slice(4)}` : contactoTelefono}
                 onChange={(e) => setContactoTelefono(e.target.value.replace(/\D/g, '').slice(0, 8))}
                 disabled={cargando}
-                placeholder="Tu teléfono (8 dígitos)"
+                placeholder="XXXX-XXXX"
                 aria-label="Tu teléfono, 8 dígitos"
-                maxLength={8}
+                maxLength={9}
                 className="min-h-11 rounded-xl border border-[#bddff7] bg-white px-3 py-2 text-sm text-[#173f70] outline-none focus:border-[#0d76e8] disabled:opacity-50"
               />
               <button
