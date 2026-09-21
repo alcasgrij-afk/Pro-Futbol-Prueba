@@ -67,7 +67,12 @@ describe('ChatService (maquina de estados)', () => {
   });
 
   it('respeta la fecha elegida en el date picker del cliente', async () => {
-    const FECHA = '2026-09-20';
+    // Manana, no un literal fijo: un dia fijo pasa a ser "fecha pasada" y el
+    // servicio la ignora (ver chat.service.ts, conFecha) en cuanto el reloj
+    // real lo alcanza, rompiendo este test todos los anios.
+    const manana = new Date();
+    manana.setDate(manana.getDate() + 1);
+    const FECHA = manana.toISOString().slice(0, 10);
     await chat.procesar(SESSION_ID, 'hola', FECHA);
     const mensajes = await chat.procesar(SESSION_ID, cancha.id, FECHA);
     const sesion = sesiones.get(SESSION_ID)!;
