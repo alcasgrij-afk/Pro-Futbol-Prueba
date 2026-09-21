@@ -1,0 +1,17 @@
+name: Keep API awake
+
+# Los servicios web gratuitos de Render se apagan tras ~15 min sin trafico;
+# el siguiente request tiene que despertar la instancia y reconectar a
+# Postgres/Redis, lo que puede tomar 15-50s (asi se sentia el selector de
+# horarios en /reservar). Este ping cada 10 min evita que la API se duerma.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        run: curl -fsS --max-time 55 https://pro-futbol-prueba.onrender.com/health

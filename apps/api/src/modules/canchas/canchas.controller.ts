@@ -16,6 +16,14 @@ export class CanchasController {
     return this.canchasService.listar();
   }
 
+  // Registrada antes de ':id/disponibilidad' para que Nest no intente
+  // resolver "disponibilidad" como un :id de cancha.
+  @Public()
+  @Get('disponibilidad')
+  disponibilidadTodas(@Query() query: DisponibilidadQueryDto) {
+    return this.canchasService.disponibilidadTodas(query.fecha);
+  }
+
   @Public()
   @Get(':id/disponibilidad')
   disponibilidad(@Param('id') id: string, @Query() query: DisponibilidadQueryDto) {

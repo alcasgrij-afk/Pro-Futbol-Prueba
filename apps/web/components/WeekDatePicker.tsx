@@ -75,24 +75,30 @@ export default function WeekDatePicker({
         if (cancelado) return;
         setCanchas(lista);
 
-        const combinaciones = lista.flatMap((c) => dias.map((fecha) => ({ c, fecha })));
+        // Una sola request por dia (todas las canchas juntas) en vez de una
+        // por cada combinacion cancha x dia: evita el fan-out de N*3 fetches
+        // que hacia sentir el picker lento, sobre todo en movil.
         const resultados = await Promise.allSettled(
-          combinaciones.map(async ({ c, fecha }) => {
-            const r = await fetch(`/api/canchas/${c.id}/disponibilidad?fecha=${fecha}`, { cache: 'no-store' });
+          dias.map(async (fecha) => {
+            const r = await fetch(`/api/canchas/disponibilidad?fecha=${fecha}`, { cache: 'no-store' });
             if (!r.ok) throw new Error('no ok');
-            const data: { bloques: Bloque[] } = await r.json();
-            return { canchaId: c.id, fecha, bloques: data.bloques };
+            const data: { canchaId: string; bloques: Bloque[] }[] = await r.json();
+            return { fecha, data };
           }),
         );
 
         if (cancelado) return;
         const nuevo: Mapa = {};
         resultados.forEach((r, i) => {
-          const { c, fecha } = combinaciones[i];
-          nuevo[fecha] = {
-            ...nuevo[fecha],
-            [c.id]: r.status === 'fulfilled' ? { bloques: r.value.bloques } : 'error',
-          };
+          const fecha = dias[i];
+          if (r.status === 'fulfilled') {
+            nuevo[fecha] = {};
+            for (const { canchaId, bloques } of r.value.data) {
+              nuevo[fecha][canchaId] = { bloques };
+            }
+          } else {
+            nuevo[fecha] = Object.fromEntries(lista.map((c) => [c.id, 'error' as const]));
+          }
         });
         setMapa(nuevo);
       } catch {
