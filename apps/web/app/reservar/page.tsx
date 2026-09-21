@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { MensajeSaliente } from '@profutbol/shared-types';
 import WeekDatePicker, { type SlotElegido } from '../../components/WeekDatePicker';
 
-// Cuanto dura el resaltado (una sola vez) del boton "Empezar a reservar"
+// Cuanto dura el resaltado (una sola vez) del boton "Reservar Ahora"
 // despues de elegir un horario en el picker.
 const RESALTE_DURACION_MS = 2600;
 
@@ -22,6 +22,13 @@ function hoyISO(): string {
 type Mensaje = {
   tipo: string;
   texto: string;
+  // Quien lo "dijo": antes se inferia de tipo==='texto' sin opciones/gateway,
+  // lo que clasificaba como "usuario" cualquier respuesta simple del bot
+  // (ej. el pedido de contacto) y la pintaba como burbuja azul del cliente.
+  origen: 'bot' | 'usuario';
+  // Version con formato (negritas/subrayado) para mensajes armados en el
+  // cliente (ej. la confirmacion de cancha/fecha/hora); si falta se usa texto.
+  contenido?: ReactNode;
   opciones?: { id: string; titulo: string }[];
   gateway?: string;
   reservaId?: string;
@@ -32,11 +39,20 @@ function normalizar(lista: MensajeSaliente[]): Mensaje[] {
   return lista.map((m) => ({
     tipo: m.tipo,
     texto: m.texto,
+    origen: 'bot',
     opciones: m.tipo === 'lista' || m.tipo === 'botones' ? (m as { opciones: { id: string; titulo: string }[] }).opciones : undefined,
     gateway: m.tipo === 'pago' ? (m as { gateway: string }).gateway : undefined,
     reservaId: m.tipo === 'pago' ? (m as { reservaId: string }).reservaId : undefined,
     montoQ: m.tipo === 'pago' ? (m as { montoQ: number }).montoQ : undefined,
   }));
+}
+
+function formatoMMSS(segundos: number): string {
+  const m = Math.floor(segundos / 60)
+    .toString()
+    .padStart(2, '0');
+  const s = (segundos % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
 }
 
 /**
@@ -59,9 +75,9 @@ export default function ReservarPage() {
   // Cancha+horario elegidos directamente en el picker (auto-selecciona el
   // horario de la reserva sin volver a preguntarlo en el chat).
   const [slotSeleccionado, setSlotSeleccionado] = useState<SlotElegido | null>(null);
-  // El boton "Empezar a reservar" se resalta una sola vez al elegir horario.
+  // El boton "Reservar Ahora" se resalta una sola vez al elegir horario.
   const [resaltarInicio, setResaltarInicio] = useState(false);
-  // true tras presionar "Empezar a reservar": oculta el selector de horarios
+  // true tras presionar "Reservar Ahora": oculta el selector de horarios
   // (el horario ya quedo elegido arriba, no hace falta seguir mostrandolo).
   const [chatIniciado, setChatIniciado] = useState(false);
   // El server (Vercel, UTC) y el navegador (hora local de GT) nunca coinciden
@@ -69,8 +85,24 @@ export default function ReservarPage() {
   // inicial rompia la hidratacion (React error #418) en cada carga. Se
   // calcula solo en el cliente, despues del mount.
   const [horaInicial, setHoraInicial] = useState('');
+  // Campos del formulario inline de contacto (nombre + telefono), en vez de
+  // que el usuario tenga que escribir "Nombre, Telefono" a mano en la caja.
+  const [contactoNombre, setContactoNombre] = useState('');
+  const [contactoTelefono, setContactoTelefono] = useState('');
+  // Cuenta regresiva de 15 min para pagar: arranca al tocar "Pagar ahora",
+  // no al mostrarse el mensaje (ver comentario en `pagar`).
+  const [pagoIniciado, setPagoIniciado] = useState<{ reservaId: string; inicioMs: number } | null>(null);
+  const [ahoraMs, setAhoraMs] = useState(() => Date.now());
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const finRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pagoIniciado) return;
+    const id = setInterval(() => setAhoraMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [pagoIniciado]);
+
+  const restanteSeg = pagoIniciado ? Math.max(0, 900 - Math.floor((ahoraMs - pagoIniciado.inicioMs) / 1000)) : null;
 
   useEffect(() => {
     setHoraInicial(new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false }));
@@ -122,7 +154,7 @@ export default function ReservarPage() {
     const t = texto.trim();
     if (!t || cargando) return;
 
-    if (!skipMsg) setMensajes((prev) => [...prev, { tipo: 'texto', texto: t }]);
+    if (!skipMsg) setMensajes((prev) => [...prev, { tipo: 'texto', texto: t, origen: 'usuario' }]);
     setEscribiendo('');
     setCargando(true);
 
@@ -140,7 +172,7 @@ export default function ReservarPage() {
       localStorage.setItem(SESSION_KEY, data.sessionId);
       if (mostrarRespuesta) setMensajes((prev) => [...prev, ...normalizar(data.mensajes)]);
     } catch {
-      setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'Ocurrió un error. Intentá de nuevo.' }]);
+      setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'Ocurrió un error. Intentá de nuevo.', origen: 'bot' }]);
     } finally {
       setCargando(false);
       // No reenfocar aca: en movil, reabrir el teclado en cada respuesta
@@ -154,6 +186,9 @@ export default function ReservarPage() {
   // --- Pago (mismo que ChatWidget) ---
   const pagar = useCallback(async (m: Mensaje) => {
     if (!m.gateway || !m.reservaId) return;
+    // Arranca la cuenta regresiva visual desde el click, no desde que aparecio
+    // el mensaje (el usuario pudo tardar en leerlo antes de tocar el boton).
+    setPagoIniciado({ reservaId: m.reservaId, inicioMs: Date.now() });
     try {
       const res = await fetch(`/api/payments/${m.gateway.toLowerCase()}/create`, {
         method: 'POST',
@@ -162,15 +197,17 @@ export default function ReservarPage() {
       });
       const data = await res.json();
       if (data.redirectUrl) window.location.href = data.redirectUrl;
-      else setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.' }]);
+      else setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.', origen: 'bot' }]);
     } catch {
-      setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.' }]);
+      setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.', origen: 'bot' }]);
     }
   }, []);
 
+  // Solo scrollea al chat: no enfoca el textarea aca (eso disparaba el
+  // scroll-into-view nativo del navegador al foco, que terminaba tapando el
+  // boton "Reservar Ahora" con el input de mensaje mas abajo).
   const focusChat = useCallback(() => {
     document.getElementById('chatArea')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => areaRef.current?.focus(), 350);
   }, []);
 
   const elegirSlot = useCallback((slot: SlotElegido) => {
@@ -196,6 +233,29 @@ export default function ReservarPage() {
     if (cargando) return;
     setChatIniciado(true);
     if (slotSeleccionado) {
+      // Se guarda en el historial (antes vivia solo en el estado "sin
+      // mensajes" y desaparecia apenas llegaba la primera respuesta real,
+      // perdiendo el rastro de que cancha/fecha/hora habia elegido el usuario).
+      const fechaLarga = new Date(`${slotSeleccionado.fecha}T12:00:00`).toLocaleDateString('es-GT', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      });
+      setMensajes((prev) => [
+        ...prev,
+        {
+          tipo: 'texto',
+          origen: 'bot',
+          texto: `¡Perfecto! Elegiste ${slotSeleccionado.canchaNombre} el ${fechaLarga} a las ${slotSeleccionado.horaInicio}.`,
+          contenido: (
+            <>
+              ¡Perfecto! Elegiste <strong className="font-black">{slotSeleccionado.canchaNombre}</strong> el{' '}
+              <strong className="font-black underline">{fechaLarga}</strong> a las{' '}
+              <strong className="font-black underline">{slotSeleccionado.horaInicio}</strong>.
+            </>
+          ),
+        },
+      ]);
       await enviar(slotSeleccionado.canchaNombre, true, false);
       await enviar(slotSeleccionado.horaInicio, true);
     } else {
@@ -204,11 +264,15 @@ export default function ReservarPage() {
   }, [cargando, slotSeleccionado, enviar]);
 
   // Vuelve a habilitar el selector de horarios de arriba para elegir uno
-  // nuevo: limpia la eleccion actual y arranca el chat de cero.
+  // nuevo: resetea todo al estado inicial (incluida fechaConfirmada, que
+  // antes quedaba en true y dejaba la caja de texto habilitada sin haber
+  // elegido nada) para que el flujo vuelva a empezar en "elegi fecha/hora".
   const cambiarHorario = useCallback(() => {
     setSlotSeleccionado(null);
     setChatIniciado(false);
+    setFechaConfirmada(false);
     setMensajes([]);
+    setPagoIniciado(null);
     localStorage.removeItem(SESSION_KEY);
   }, []);
 
@@ -223,12 +287,33 @@ export default function ReservarPage() {
     if (areaRef.current) areaRef.current.style.height = 'auto';
   }
 
+  function enviarContacto() {
+    const nombre = contactoNombre.trim();
+    if (!nombre || contactoTelefono.length !== 8) return;
+    enviar(`${nombre}, ${contactoTelefono}`);
+    setContactoNombre('');
+    setContactoTelefono('');
+  }
+
   const renderMensaje = (m: Mensaje, i: number, esUltimo: boolean) => {
-    const esUsuario = m.tipo === 'texto' && !m.opciones && !m.gateway;
+    const esUsuario = m.origen === 'usuario';
     // El ultimo mensaje del bot se resalta para que el usuario note que hay
     // algo que responder, en vez de resaltar la caja de texto en cada turno.
     const resaltado = !esUsuario && esUltimo;
     const tiempo = new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    // El aviso "Tenes 15 minutos..." siempre llega justo despues del mensaje
+    // de tipo 'pago' (ver chat.service.ts, crearReserva): se detecta por
+    // posicion para reemplazar el texto fijo por la cuenta regresiva real
+    // una vez que el usuario toco "Pagar ahora" para esa reserva puntual.
+    const anterior = mensajes[i - 1];
+    const esAvisoDePago = m.tipo === 'texto' && anterior?.tipo === 'pago' && pagoIniciado?.reservaId === anterior.reservaId;
+    const cuerpo = esAvisoDePago
+      ? typeof restanteSeg === 'number' && restanteSeg > 0
+        ? `Tenés ${formatoMMSS(restanteSeg)} para completar el pago o el horario se libera.`
+        : 'El tiempo para completar el pago expiró.'
+      : (m.contenido ?? m.texto);
+
     return (
       <div key={i} className={`flex items-end gap-2 max-w-[92%] ${esUsuario ? 'self-end flex-row-reverse' : ''}`}>
         <div
@@ -247,7 +332,40 @@ export default function ReservarPage() {
                 : 'rounded-bl-[6px] bg-white border border-[#d9ebf8] text-[#173f70] shadow-[0_4px_14px_rgba(4,49,104,.05)]'
           }`}
         >
-          <div className="whitespace-pre-wrap break-words">{m.texto}</div>
+          <div className="whitespace-pre-wrap break-words">{cuerpo}</div>
+
+          {m.tipo === 'pedir_contacto' && esUltimo && (
+            <div className="flex flex-col gap-2 pt-2.5">
+              <input
+                type="text"
+                value={contactoNombre}
+                onChange={(e) => setContactoNombre(e.target.value)}
+                disabled={cargando}
+                placeholder="Tu nombre"
+                aria-label="Tu nombre"
+                className="min-h-11 rounded-xl border border-[#bddff7] bg-white px-3 py-2 text-sm text-[#173f70] outline-none focus:border-[#0d76e8] disabled:opacity-50"
+              />
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={contactoTelefono}
+                onChange={(e) => setContactoTelefono(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                disabled={cargando}
+                placeholder="Tu teléfono (8 dígitos)"
+                aria-label="Tu teléfono, 8 dígitos"
+                maxLength={8}
+                className="min-h-11 rounded-xl border border-[#bddff7] bg-white px-3 py-2 text-sm text-[#173f70] outline-none focus:border-[#0d76e8] disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={enviarContacto}
+                disabled={cargando || !contactoNombre.trim() || contactoTelefono.length !== 8}
+                className="min-h-11 rounded-full bg-[#0d76e8] text-white px-3 py-1.5 text-xs font-black hover:bg-[#0b66c4] disabled:opacity-40 transition-colors"
+              >
+                Enviar contacto
+              </button>
+            </div>
+          )}
 
           {m.opciones && (
             <div className="flex flex-wrap gap-2 pt-2">
@@ -436,7 +554,7 @@ export default function ReservarPage() {
                               })}
                             </strong>{' '}
                             a las <strong className="font-black underline">{slotSeleccionado.horaInicio}</strong>. Click en{' '}
-                            <span className="font-black text-[#0d76e8]">&quot;Empezar a reservar&quot;</span> para confirmar.
+                            <span className="font-black text-[#0d76e8]">&quot;Reservar Ahora&quot;</span> para confirmar.
                           </>
                         ) : (
                           '¡Hola! Estoy aquí para ayudarte a reservar tu cancha. ¿Qué cancha preferís?'
@@ -452,7 +570,7 @@ export default function ReservarPage() {
                           resaltarInicio ? 'ring-2 ring-[#d8b32d] shadow-[0_0_0_5px_rgba(216,179,45,.25)] scale-105' : ''
                         }`}
                       >
-                        Empezar a reservar
+                        Reservar Ahora
                       </button>
                     </div>
                   </>

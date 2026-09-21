@@ -86,7 +86,8 @@ export type MensajeSaliente =
   | { tipo: 'texto'; texto: string }
   | { tipo: 'lista'; texto: string; opciones: { id: string; titulo: string }[] }
   | { tipo: 'botones'; texto: string; opciones: { id: string; titulo: string }[] }
-  | { tipo: 'pago'; texto: string; gateway: GatewayPago; reservaId: string; montoQ: number };
+  | { tipo: 'pago'; texto: string; gateway: GatewayPago; reservaId: string; montoQ: number }
+  | { tipo: 'pedir_contacto'; texto: string };
 
 /** Sesion de chat persistida en Redis bajo la llave `session:{sessionId}`. */
 export interface SesionChat {

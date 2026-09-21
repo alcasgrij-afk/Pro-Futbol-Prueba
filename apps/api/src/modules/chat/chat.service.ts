@@ -272,7 +272,7 @@ export class ChatService {
         sesion: { ...sesion, estado: BotEstado.PEDIR_CONTACTO, formaPago },
         mensajes: [
           {
-            tipo: 'texto',
+            tipo: 'pedir_contacto',
             texto:
               'Para confirmar tu reserva necesitamos tu contacto. Escribilo asi: ' +
               'Tu nombre, tu telefono. (ej: Juan Perez, 5555-1234)',
@@ -294,7 +294,7 @@ export class ChatService {
         sesion,
         mensajes: [
           {
-            tipo: 'texto',
+            tipo: 'pedir_contacto',
             texto: 'No entendi eso. Escribilo asi: Tu nombre, tu telefono. (ej: Juan Perez, 5555-1234)',
           },
         ],
