@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { Camera, CalendarBlank, Phone, TShirt, User, UserCircle, UsersFour, MapPin } from '@phosphor-icons/react';
 import { AlumnoDTO } from '@profutbol/shared-types';
 import { ApiError, api } from '../../../lib/api-client';
@@ -47,7 +48,8 @@ function colorCategoria(categoria: string): string {
   return PALETA_CATEGORIA[Math.abs(hash) % PALETA_CATEGORIA.length];
 }
 
-export default function AcademiaPage() {
+function AcademiaContenido() {
+  const searchParams = useSearchParams();
   const [alumnos, setAlumnos] = useState<AlumnoDTO[]>([]);
   const [cargando, setCargando] = useState(true);
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -71,6 +73,19 @@ export default function AcademiaPage() {
   }
 
   useEffect(cargar, []);
+
+  // Permite llegar con el formulario de alta ya abierto desde un acceso
+  // directo (ej. "Nuevo alumno" en /admin), sin depender de abrirFormNuevo
+  // (se redefine en cada render y entrar en las deps causaria un loop).
+  useEffect(() => {
+    if (searchParams.get('nuevo') === '1') {
+      setForm(FORM_VACIO);
+      setEditando(null);
+      setFoto(null);
+      setError(null);
+      setMostrarForm(true);
+    }
+  }, [searchParams]);
 
   function abrirFormNuevo() {
     setForm(FORM_VACIO);
@@ -360,5 +375,13 @@ export default function AcademiaPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function AcademiaPage() {
+  return (
+    <Suspense fallback={null}>
+      <AcademiaContenido />
+    </Suspense>
   );
 }

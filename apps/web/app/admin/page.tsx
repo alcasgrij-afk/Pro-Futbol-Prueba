@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CalendarBlank, ChartBar, GraduationCap, Trophy } from '@phosphor-icons/react';
+import { ArrowRight, CalendarBlank, ChartBar, ClipboardText, GraduationCap, Receipt, Trophy, UserPlus } from '@phosphor-icons/react';
 
 // Landing del panel admin: hub de accesos a cada categoria. El shell (guarda
 // de sesion + sidebar) lo provee app/admin/layout.tsx via AdminLayout.
@@ -10,6 +10,7 @@ const CATEGORIAS = [
   {
     href: '/reservas',
     t: 'Reservas del día',
+    corto: 'Reservas',
     d: 'Confirma, cancela y adjunta links de pago.',
     icon: CalendarBlank,
     tint: 'bg-blue-50',
@@ -19,6 +20,7 @@ const CATEGORIAS = [
   {
     href: '/admin/torneos',
     t: 'Torneos',
+    corto: 'Torneos',
     d: 'Crear y gestionar torneos e inscripciones.',
     icon: Trophy,
     tint: 'bg-amber-50',
@@ -28,6 +30,7 @@ const CATEGORIAS = [
   {
     href: '/admin/academia',
     t: 'Academia',
+    corto: 'Academia',
     d: 'Alumnos, asistencia y mensualidades.',
     icon: GraduationCap,
     tint: 'bg-emerald-50',
@@ -37,6 +40,7 @@ const CATEGORIAS = [
   {
     href: '/admin/reportes',
     t: 'Reportes',
+    corto: 'Reportes',
     d: 'Métricas de reservas e ingresos.',
     icon: ChartBar,
     tint: 'bg-violet-50',
@@ -44,6 +48,38 @@ const CATEGORIAS = [
     iconColor: 'text-violet-600',
   },
 ] as const;
+
+// Sub-accesos de Academia que antes solo eran alcanzables entrando primero a
+// /admin/academia: se agregan aparte (no forman parte de las 4 categorias
+// principales) para que tambien queden a un clic desde el dashboard.
+const ACCESOS_EXTRA = [
+  {
+    href: '/admin/academia/mensualidades',
+    corto: 'Mensualidades',
+    icon: Receipt,
+    tint: 'bg-emerald-50',
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+  },
+  {
+    href: '/admin/academia/asistencia',
+    corto: 'Tomar asistencia',
+    icon: ClipboardText,
+    tint: 'bg-emerald-50',
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+  },
+  {
+    href: '/admin/academia?nuevo=1',
+    corto: 'Nuevo alumno',
+    icon: UserPlus,
+    tint: 'bg-emerald-50',
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+  },
+] as const;
+
+const ACCESOS_RAPIDOS = [...CATEGORIAS, ...ACCESOS_EXTRA];
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MESES = [
@@ -105,7 +141,7 @@ export default function AdminHomePage() {
       <div>
         <h2 className="text-xs font-bold tracking-widest text-gray-500 uppercase mb-3">Acceso rápido</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {CATEGORIAS.map((c) => (
+          {ACCESOS_RAPIDOS.map((c) => (
             <Link
               key={c.href}
               href={c.href}
@@ -114,7 +150,7 @@ export default function AdminHomePage() {
               <span className={`w-10 h-10 rounded-full ${c.iconBg} flex items-center justify-center shrink-0`}>
                 <c.icon size={18} weight="bold" className={c.iconColor} aria-hidden="true" />
               </span>
-              <p className="font-semibold text-navy text-sm min-w-0">{c.t.replace(' del día', '')}</p>
+              <p className="font-semibold text-navy text-sm min-w-0">{c.corto}</p>
               <ArrowRight size={16} className="ml-auto text-gray-400 shrink-0" aria-hidden="true" />
             </Link>
           ))}
