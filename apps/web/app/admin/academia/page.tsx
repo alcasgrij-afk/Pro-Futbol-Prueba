@@ -54,16 +54,18 @@ export default function AcademiaPage() {
 
   useEffect(cargar, []);
 
-  function alternarFormNuevo() {
-    if (mostrarForm) {
-      setMostrarForm(false);
-      setEditando(null);
-      return;
-    }
+  function abrirFormNuevo() {
     setForm(FORM_VACIO);
     setEditando(null);
     setError(null);
     setMostrarForm(true);
+  }
+
+  function cancelarForm() {
+    setMostrarForm(false);
+    setEditando(null);
+    setForm(FORM_VACIO);
+    setError(null);
   }
 
   function iniciarEdicion(a: AlumnoDTO) {
@@ -126,10 +128,10 @@ export default function AcademiaPage() {
             Mensualidades
           </Link>
           <button
-            onClick={alternarFormNuevo}
+            onClick={abrirFormNuevo}
             className="px-3 py-1.5 bg-navy text-white rounded-md font-semibold transition-transform active:scale-[0.98]"
           >
-            {mostrarForm ? 'Cancelar' : '+ Nuevo alumno'}
+            + Nuevo alumno
           </button>
         </div>
       </div>
@@ -144,7 +146,7 @@ export default function AcademiaPage() {
             </label>
             <label className="space-y-1">
               <span className="block text-sm text-gray-700">Fecha de nacimiento *</span>
-              <input type="date" value={form.fechaNacimiento} min={hoyISOAnios(-60)} max={hoyISOAnios(0)} onChange={(e) => setForm({ ...form, fechaNacimiento: e.target.value })} className="w-full rounded bg-white px-3 py-2 min-h-11 text-sm text-navy" />
+              <input type="date" value={form.fechaNacimiento} min={hoyISOAnios(-40)} max={hoyISOAnios(0)} onChange={(e) => setForm({ ...form, fechaNacimiento: e.target.value })} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 min-h-11 text-sm text-navy" />
             </label>
             <label className="space-y-1">
               <span className="block text-sm text-gray-700">Categoría (vacío = sugerida por edad)</span>
@@ -160,13 +162,22 @@ export default function AcademiaPage() {
             </label>
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
-          <button
-            onClick={guardar}
-            disabled={guardando || !form.nombre || !form.fechaNacimiento || !form.encargadoNombre || !form.encargadoTelefono}
-            className="px-4 py-2 bg-navy text-white rounded-md text-sm font-semibold disabled:opacity-50 transition-transform active:scale-[0.98]"
-          >
-            {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Registrar alumno'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={guardar}
+              disabled={guardando || !form.nombre || !form.fechaNacimiento || !form.encargadoNombre || !form.encargadoTelefono}
+              className="px-4 py-2 bg-navy text-white rounded-md text-sm font-semibold disabled:opacity-50 transition-transform active:scale-[0.98]"
+            >
+              {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Registrar alumno'}
+            </button>
+            <button
+              onClick={cancelarForm}
+              disabled={guardando}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm font-semibold disabled:opacity-50 hover:bg-gray-50 transition active:scale-[0.98]"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 
@@ -209,9 +220,9 @@ export default function AcademiaPage() {
                     {a.encargadoNombre}
                     <div className="text-xs text-gray-500">{a.encargadoTelefono}</div>
                   </td>
-                  <td className="px-4 py-2 text-right space-x-3 whitespace-nowrap">
-                    <button onClick={() => iniciarEdicion(a)} className="text-xs text-navy hover:underline">Editar</button>
-                    <button onClick={() => setDesactivando(a)} className="text-xs text-red-600 hover:underline">Desactivar</button>
+                  <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
+                    <button onClick={() => iniciarEdicion(a)} className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100 transition active:scale-[0.98]">Editar</button>
+                    <button onClick={() => setDesactivando(a)} className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 hover:bg-red-100 transition active:scale-[0.98]">Desactivar</button>
                   </td>
                 </tr>
               ))}

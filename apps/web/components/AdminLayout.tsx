@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { borrarToken, obtenerToken } from '../lib/api-client';
 
@@ -44,7 +45,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="min-h-screen">
       <header className="bg-navy text-white px-6 py-3 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <Link href="/admin" className="font-bold hover:text-yellow-300 transition-colors">
+          <Link href="/admin" className="flex items-center gap-2 font-bold hover:text-yellow-300 transition-colors">
+            <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={28} height={28} className="rounded-sm" />
             Pro Futbol Antigua · Panel Admin
           </Link>
           <nav className="flex gap-4 text-sm">

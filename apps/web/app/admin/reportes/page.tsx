@@ -18,6 +18,13 @@ function hoyISO(): string {
   return aISO(new Date());
 }
 
+// Codigo de color de ocupacion: verde = holgura, ambar = moderada, rojo = casi llena.
+function colorOcupacion(porcentaje: number): { barra: string; texto: string } {
+  if (porcentaje >= 85) return { barra: 'bg-red-500', texto: 'text-red-600' };
+  if (porcentaje >= 60) return { barra: 'bg-amber-500', texto: 'text-amber-600' };
+  return { barra: 'bg-green-500', texto: 'text-green-600' };
+}
+
 export default function ReportesPage() {
   const [desde, setDesde] = useState(primerDiaDelMes());
   const [hasta, setHasta] = useState(hoyISO());
@@ -119,8 +126,9 @@ export default function ReportesPage() {
                 <summary className="text-xs text-gray-600 cursor-pointer">Ver desglose diario</summary>
                 <div className="space-y-1 mt-2">
                   {ingresos?.porDia.map((d) => (
-                    <div key={d.fecha} className="flex justify-between text-xs text-gray-600">
+                    <div key={d.fecha} className="flex items-baseline gap-2 text-xs text-gray-600">
                       <span>{d.fecha}</span>
+                      <span className="flex-1 border-b border-dotted border-gray-300" />
                       <span className="font-medium">Q{d.totalQ}</span>
                     </div>
                   ))}
@@ -131,20 +139,23 @@ export default function ReportesPage() {
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h2 className="text-sm font-semibold text-gray-500 mb-4">Ocupacion por cancha</h2>
               <div className="space-y-4">
-                {ocupacion?.porCancha.map((c) => (
-                  <div key={c.canchaId}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="font-medium">{c.canchaNombre}</span>
-                      <span className="text-gray-500">{c.porcentajeOcupacion}%</span>
+                {ocupacion?.porCancha.map((c) => {
+                  const color = colorOcupacion(c.porcentajeOcupacion);
+                  return (
+                    <div key={c.canchaId}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium">{c.canchaNombre}</span>
+                        <span className={`font-semibold ${color.texto}`}>{c.porcentajeOcupacion}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div className={`h-2 rounded-full ${color.barra}`} style={{ width: `${c.porcentajeOcupacion}%` }} />
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {c.bloquesOcupados} de {c.bloquesTotales} bloques ocupados
+                      </p>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div className="bg-navy h-2 rounded-full" style={{ width: `${c.porcentajeOcupacion}%` }} />
-                    </div>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {c.bloquesOcupados} de {c.bloquesTotales} bloques ocupados
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

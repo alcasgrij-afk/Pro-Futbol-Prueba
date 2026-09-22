@@ -65,7 +65,35 @@ export default function AdminTorneosPage() {
       <section>
         <h1 className="text-2xl font-bold mb-6">Torneos</h1>
 
-        <form onSubmit={crear} className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4 max-w-xl mb-8">
+        <h2 className="font-semibold mb-3">Lista de torneos</h2>
+        {cargando && <p className="text-gray-500">Cargando...</p>}
+        {!cargando && torneos.length === 0 && <p className="text-gray-500">Aún no hay torneos.</p>}
+        <ul className="space-y-3 mb-8">
+          {torneos.map((t) => (
+            <li key={t.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <Link href={`/admin/torneos/${t.id}`} className="font-semibold hover:underline">
+                  {t.nombre}
+                </Link>
+                {t.descripcion && <p className="text-sm text-gray-600 mt-1">{t.descripcion}</p>}
+                <p className="text-xs text-gray-500">{t.formato === FormatoTorneo.LIGA ? 'Todos contra todos' : 'Eliminación directa'} · {t.equiposInscritos}/{t.maxEquipos} equipos · Cuota Q{t.cuotaInscripcionQ}</p>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  t.estado === EstadoTorneo.INSCRIPCIONES_ABIERTAS ? 'bg-yellow-100 text-yellow-800' :
+                  t.estado === EstadoTorneo.EN_CURSO ? 'bg-blue-100 text-blue-800' :
+                  t.estado === EstadoTorneo.FINALIZADO ? 'bg-green-100 text-green-800' :
+                  t.estado === EstadoTorneo.CANCELADO ? 'bg-red-100 text-red-700' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {ETIQUETA_ESTADO[t.estado]}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <form onSubmit={crear} className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4 max-w-xl">
           <h2 className="font-semibold">Crear nuevo torneo</h2>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-1">
@@ -145,34 +173,6 @@ export default function AdminTorneosPage() {
           {creado && <p className="text-green-700 text-sm">Torneo creado correctamente.</p>}
           {error && <p className="text-red-600 text-sm">{error}</p>}
         </form>
-
-        <h2 className="font-semibold mb-3">Lista de torneos</h2>
-        {cargando && <p className="text-gray-500">Cargando...</p>}
-        {!cargando && torneos.length === 0 && <p className="text-gray-500">Aún no hay torneos.</p>}
-        <ul className="space-y-3">
-          {torneos.map((t) => (
-            <li key={t.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <Link href={`/admin/torneos/${t.id}`} className="font-semibold hover:underline">
-                  {t.nombre}
-                </Link>
-                {t.descripcion && <p className="text-sm text-gray-600 mt-1">{t.descripcion}</p>}
-                <p className="text-xs text-gray-500">{t.formato === FormatoTorneo.LIGA ? 'Todos contra todos' : 'Eliminación directa'} · {t.equiposInscritos}/{t.maxEquipos} equipos · Cuota Q{t.cuotaInscripcionQ}</p>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  t.estado === EstadoTorneo.INSCRIPCIONES_ABIERTAS ? 'bg-yellow-100 text-yellow-800' :
-                  t.estado === EstadoTorneo.EN_CURSO ? 'bg-blue-100 text-blue-800' :
-                  t.estado === EstadoTorneo.FINALIZADO ? 'bg-green-100 text-green-800' :
-                  t.estado === EstadoTorneo.CANCELADO ? 'bg-red-100 text-red-700' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  {ETIQUETA_ESTADO[t.estado]}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
       </section>
     </div>
   );
