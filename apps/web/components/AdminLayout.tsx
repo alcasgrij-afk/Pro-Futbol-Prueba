@@ -46,7 +46,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="bg-navy text-white px-6 py-3 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <Link href="/admin" className="flex items-center gap-2 font-bold hover:text-yellow-300 transition-colors">
-            <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={28} height={28} className="rounded-sm" />
+            <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={453} height={162} className="h-7 w-auto" />
             Pro Futbol Antigua · Panel Admin
           </Link>
           <nav className="flex gap-4 text-sm">

@@ -58,9 +58,9 @@ export default function AdminHomePage() {
         <Image
           src="/profutbollogo.png"
           alt="Pro Futbol Antigua Logo"
-          width={80}
-          height={80}
-          className="rounded-full border-4 border-navy/20"
+          width={453}
+          height={162}
+          className="h-16 w-auto rounded-lg border-4 border-navy/20 bg-navy p-2"
         />
         <h1 className="text-lg font-bold text-navy">Panel Admin</h1>
       </div>
