@@ -26,6 +26,10 @@ type Mensaje = {
   // lo que clasificaba como "usuario" cualquier respuesta simple del bot
   // (ej. el pedido de contacto) y la pintaba como burbuja azul del cliente.
   origen: 'bot' | 'usuario';
+  // Hora real de envio/recepcion, capturada una vez al crear el mensaje (no
+  // en cada render): antes renderMensaje llamaba new Date() en cada render,
+  // asi que TODOS los mensajes mostraban la hora actual en vez de la propia.
+  hora: string;
   // Version con formato (negritas/subrayado) para mensajes armados en el
   // cliente (ej. la confirmacion de cancha/fecha/hora); si falta se usa texto.
   contenido?: ReactNode;
@@ -35,11 +39,19 @@ type Mensaje = {
   montoQ?: number;
 };
 
+function horaAhora(): string {
+  return new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 function normalizar(lista: MensajeSaliente[]): Mensaje[] {
+  // Los mensajes de una misma respuesta llegan juntos: comparten la hora de
+  // recepcion (no tiene sentido recalcularla por cada uno del lote).
+  const hora = horaAhora();
   return lista.map((m) => ({
     tipo: m.tipo,
     texto: m.texto,
     origen: 'bot',
+    hora,
     opciones: m.tipo === 'lista' || m.tipo === 'botones' ? (m as { opciones: { id: string; titulo: string }[] }).opciones : undefined,
     gateway: m.tipo === 'pago' ? (m as { gateway: string }).gateway : undefined,
     reservaId: m.tipo === 'pago' ? (m as { reservaId: string }).reservaId : undefined,
@@ -154,7 +166,7 @@ export default function ReservarPage() {
     const t = texto.trim();
     if (!t || cargando) return null;
 
-    if (!skipMsg) setMensajes((prev) => [...prev, { tipo: 'texto', texto: t, origen: 'usuario' }]);
+    if (!skipMsg) setMensajes((prev) => [...prev, { tipo: 'texto', texto: t, origen: 'usuario', hora: horaAhora() }]);
     setEscribiendo('');
     setCargando(true);
 
@@ -173,7 +185,7 @@ export default function ReservarPage() {
       if (mostrarRespuesta) setMensajes((prev) => [...prev, ...normalizar(data.mensajes)]);
       return data.mensajes;
     } catch {
-      setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'Ocurrió un error. Intentá de nuevo.', origen: 'bot' }]);
+      setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'Ocurrió un error. Intentá de nuevo.', origen: 'bot', hora: horaAhora() }]);
       return null;
     } finally {
       setCargando(false);
@@ -200,9 +212,9 @@ export default function ReservarPage() {
       });
       const data = await res.json();
       if (data.redirectUrl) window.location.href = data.redirectUrl;
-      else setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.', origen: 'bot' }]);
+      else setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.', origen: 'bot', hora: horaAhora() }]);
     } catch {
-      setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.', origen: 'bot' }]);
+      setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.', origen: 'bot', hora: horaAhora() }]);
     }
   }, []);
 
@@ -257,6 +269,7 @@ export default function ReservarPage() {
       {
         tipo: 'texto',
         origen: 'bot',
+        hora: horaAhora(),
         texto: `¡Perfecto! Elegiste ${slotSeleccionado.canchaNombre} el ${fechaLarga} a las ${slotSeleccionado.horaInicio}.`,
         contenido: (
           <>
@@ -315,7 +328,7 @@ export default function ReservarPage() {
     // El ultimo mensaje del bot se resalta para que el usuario note que hay
     // algo que responder, en vez de resaltar la caja de texto en cada turno.
     const resaltado = !esUsuario && esUltimo;
-    const tiempo = new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const tiempo = m.hora;
 
     // El aviso "Tenes 15 minutos..." siempre llega justo despues del mensaje
     // de tipo 'pago' (ver chat.service.ts, crearReserva): se detecta por
