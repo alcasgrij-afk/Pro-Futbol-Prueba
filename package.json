@@ -41,7 +41,7 @@
     "prettier": "^3.3.2"
   },
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   },
   "overrides": {
     "@nestjs/common": "^11.2.5",

@@ -4,13 +4,18 @@
 # Etapa 1: build - instala TODAS las dependencias (incluye devDependencies)
 # y compila TypeScript a JavaScript.
 # =============================================================================
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /repo
 
 # node:*-alpine no trae libssl del sistema (solo el OpenSSL estatico interno
 # de Node): sin esto, `prisma generate` no puede detectar la version y el
 # motor de consultas no carga en runtime ("libssl.so.1.1: No such file").
 RUN apk add --no-cache openssl
+# Toolchain de compilacion para addons nativos (bcrypt): si npm no encuentra
+# un binario prebuild para esta version de Node + musl, cae a compilar desde
+# codigo fuente via node-gyp, que necesita python3/make/g++ (Alpine no los
+# trae por defecto). Sin esto, un prebuild faltante rompe el build en npm ci.
+RUN apk add --no-cache python3 make g++
 
 COPY package.json package-lock.json ./
 COPY packages/shared-types/package.json packages/shared-types/package.json
@@ -29,7 +34,7 @@ RUN npm run build -w apps/api
 # Etapa 2: runtime - imagen liviana, solo dependencias de produccion y el
 # codigo ya compilado. No incluye TypeScript, ts-node, jest, etc.
 # =============================================================================
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
@@ -49,7 +54,7 @@ COPY --from=builder /repo/apps/api/prisma apps/api/prisma
 COPY --from=builder /repo/node_modules/.prisma node_modules/.prisma
 # bcrypt es un addon nativo: --ignore-scripts de arriba deja el paquete sin
 # compilar (bcrypt_lib.node falta) y crashea al iniciar. Se copia ya compilado
-# desde builder (mismo node:20-alpine en ambas etapas, binario compatible).
+# desde builder (mismo node:22-alpine en ambas etapas, binario compatible).
 COPY --from=builder /repo/node_modules/bcrypt node_modules/bcrypt
 
 EXPOSE 3001
