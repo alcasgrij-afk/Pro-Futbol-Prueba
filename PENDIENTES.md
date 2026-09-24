@@ -305,7 +305,7 @@ vectores. Revisar en la próxima actualización mayor de `next`/NestJS.
 
 ---
 
-### 4.4 Node.js 20 → 22 (planificado, sin ejecutar — 2026-09-23)
+### 4.4 Node.js 20 → 22 ✅ (resuelto 2026-09-23, local + Docker)
 
 Node 20 salió de mantenimiento (EOL) en abril 2026; hoy corre sin parches de
 seguridad upstream. Auditoría previa a la ejecución (`npm outdated
@@ -344,6 +344,23 @@ cableado en `nest-cli.json` (el build usa `tsc` plano) — dormido, no afecta.
 8. Deploy: si Render tiene un entorno de preview/staging, probar ahí primero;
    si no, desplegar sabiendo que el rollback es un `git revert` + redeploy de
    la imagen anterior (blast radius bajo, un solo servicio).
+
+**Ejecutado y verificado (commit `c128ce6`):** reinstalación limpia de
+`node_modules` bajo Node 22.23.3 (via nvm-windows) + `prisma generate`;
+`tsc`/build/lint limpios en las 3 apps; **131/131 tests** de api
+(`test:cov`, exit 0, ~2x más rápido que bajo Node 20). `docker build` de
+`apps/api/Dockerfile` en `node:22-alpine` sin tocar el toolchain de
+respaldo (bcrypt encontró binario prebuild). Contenedor levantado contra
+Postgres/Redis reales (docker-compose): boot limpio, `GET /torneos` → 200,
+y **dentro del contenedor** se ejecutó `bcrypt.hashSync`/`compareSync`
+directamente (no solo `require`) — confirma que el addon nativo funciona en
+Alpine + Node 22 en runtime, no solo que compila. `next build` (18/18
+rutas) + `next start`: `/`, `/admin`, `/reservar`, `/login` → 200.
+
+**Pendiente fuera del repo:** actualizar el "Node.js Version" del proyecto
+`apps/web` en el dashboard de Vercel (no hay `vercel.json` que lo fije
+desde el repo). El deploy a Render (que sí toma el Dockerfile) queda
+pendiente de que el equipo decida cuándo promoverlo.
 
 ### 4.5 Actualizaciones patch/minor pendientes (planificado — 2026-09-23)
 
@@ -551,7 +568,7 @@ verificación en browser.
 | WebSocket /chat 404 (sección 10.1) | Chat → HTTP + página pública | ✅ resuelto (2026-09-13) |
 | Dashboard no auto-refresca (sección 10.2) | UX | ✅ resuelto (2026-09-13) |
 | Gateway SIMULADO no en enum (sección 10.3) | 1 enum | ✅ resuelto (2026-09-13) |
-| Node.js 20 → 22 (sección 4.4) | Docker (2 etapas) + CI + engines + .nvmrc + Vercel dashboard | ⚠️ planificado (2026-09-23), no ejecutado |
+| Node.js 20 → 22 (sección 4.4) | Docker (2 etapas) + CI + engines + .nvmrc + Vercel dashboard | ✅ resuelto (2026-09-23) local+Docker; Vercel dashboard y deploy a Render pendientes |
 | Patch/minor deps (sección 4.5) | 9 paquetes, sin migración | ⚠️ planificado (2026-09-23), no ejecutado |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).
