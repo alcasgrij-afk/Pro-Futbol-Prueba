@@ -305,6 +305,70 @@ vectores. Revisar en la próxima actualización mayor de `next`/NestJS.
 
 ---
 
+### 4.4 Node.js 20 → 22 (planificado, sin ejecutar — 2026-09-23)
+
+Node 20 salió de mantenimiento (EOL) en abril 2026; hoy corre sin parches de
+seguridad upstream. Auditoría previa a la ejecución (`npm outdated
+--workspaces` + revisión de `Dockerfile`/CI/schema Prisma) identificó 5
+riesgos propios de este stack, no genéricos:
+
+| # | Riesgo | Por qué aplica aquí | Mitigación |
+|---|---|---|---|
+| 1 | `bcrypt` (addon nativo) puede romper en la imagen Alpine | `apps/api/Dockerfile` compila `bcrypt` en la etapa `builder` y copia el binario ya compilado a `runtime` **porque ambas etapas usan la misma imagen** (comentario explícito en el Dockerfile). Un binario de Node 22 no es compatible con uno de Node 20 (ABI distinto). El builder no instala toolchain de compilación (`python3 make g++`), solo `openssl` — si no hay binario prebuild para Node 22 + musl, el build falla. | Bumpear las 2 líneas `FROM node:20-alpine` a la vez; agregar `RUN apk add --no-cache python3 make g++` en la etapa `builder` como red de seguridad; probar `docker build` localmente antes de tocar Render. |
+| 2 | Prisma/OpenSSL en Alpine | Este repo ya sufrió `libssl.so.1.1: No such file` una vez (ver comentario en el Dockerfile). `binaryTargets` en `schema.prisma` depende de OpenSSL, no de Node, pero el historial exige no confiar solo en que `docker build` pase. | Tras el bump, levantar el contenedor y pegarle a un endpoint real que consulte Postgres, no solo verificar que compile. |
+| 3 | Desincronización Docker/CI/config | Node 20 está fijado en 4 lugares independientes: `apps/api/Dockerfile` (x2), `.github/workflows/ci.yml:47`, `package.json` raíz (`engines`) y `.nvmrc`. | Bumpear los 4 en el mismo commit; `grep -rn '"20"' --include="Dockerfile*" --include="*.yml" .` antes de mergear. |
+| 4 | Node de Vercel vive fuera del repo | No hay `vercel.json`; la versión de Node del proyecto web se configura en el dashboard de Vercel. | Revisar/actualizar el dropdown "Node.js Version" del proyecto en Vercel por separado — no lo va a recordar un grep del repo. |
+| 5 | Máquina local todavía en Node 20 | `.nvmrc` decía 20 y `node -v` confirmaba v20.20.2 real corriendo. | `nvm install 22 && nvm use 22` local + reinstalar `node_modules` desde cero (bcrypt necesita recompilar/redescargar también localmente). |
+
+**No es riesgo:** `ioredis`, `bullmq`, el cliente de Prisma, `pdfkit`, `exceljs`
+son JS puro, sin bindings nativos. `@swc/core` es devDependency pero no está
+cableado en `nest-cli.json` (el build usa `tsc` plano) — dormido, no afecta.
+
+**Secuencia recomendada (no ejecutada aún):**
+1. `package.json` raíz: `engines.node` → `22.x`; `.nvmrc` → `22`.
+2. Local: `nvm install 22 && nvm use 22`, borrar `node_modules` de raíz y de
+   cada workspace, `npm ci` limpio.
+3. `apps/api/Dockerfile`: las 2 líneas `FROM node:20-alpine` → `node:22-alpine`;
+   agregar el toolchain de compilación de respaldo en la etapa `builder`
+   (mitigación del riesgo 1).
+4. `docker build -f apps/api/Dockerfile .` local; si falla en `bcrypt`,
+   confirmar que el toolchain agregado resuelve, o subir la versión de
+   `bcrypt` a una con prebuild confirmado para Node 22 + musl.
+5. `.github/workflows/ci.yml:47`: `node-version: "20"` → `"22"`.
+6. Vercel (dashboard, fuera del repo): actualizar "Node.js Version" del
+   proyecto `apps/web`.
+7. Verificación completa antes de dar por cerrado: `tsc --noEmit` en las 3
+   apps, `npm run lint`, `npm run test:cov -w apps/api` (baseline actual:
+   126/126), `docker build` + arrancar el contenedor + pegarle a un endpoint
+   real con Postgres, `next build` + `next start` smoke.
+8. Deploy: si Render tiene un entorno de preview/staging, probar ahí primero;
+   si no, desplegar sabiendo que el rollback es un `git revert` + redeploy de
+   la imagen anterior (blast radius bajo, un solo servicio).
+
+### 4.5 Actualizaciones patch/minor pendientes (planificado — 2026-09-23)
+
+`npm outdated --workspaces` (2026-09-23) — estas son compatibles hacia atrás,
+sin trabajo de migración, y **no dependen** del bump de Node (se pueden hacer
+antes, después o el mismo día):
+
+`@nestjs/cli`, `@nestjs/common`/`core`/`platform-express`/`testing` (11.2.5→11.2.6),
+`@sentry/nestjs` (→10.75.3, **no** el major 11), `rxjs`, `supertest`, `ts-jest`,
+`framer-motion`, `class-validator`, `eslint-config-prettier`.
+
+**Secuencia:** `npm update` en la raíz → `npm run build` → `npm run test:cov -w apps/api`
+→ commit único ("chore: bump patch/minor deps").
+
+**Deferred — majors que requieren su propia migración** (catalogados, no
+agendados): Tailwind 3→4 (PR de Dependabot ya abierto), ESLint 8→10 (implica
+migrar a flat config, **acoplado** a Next 16 porque `eslint-config-next@16`
+exige flat config), Next.js 15→16 (depende de lo anterior), TypeScript 5.9→7
+(reescritura del compilador, leer notas de migración antes de tocar), NestJS
+11→12 (bump coordinado de todo `@nestjs/*`, no paquete por paquete), Prisma
+5→7 (saltea la v6 entera, toca cada query — rama propia), `ioredis` 5→6 +
+`bullmq` 5→6 + `@nestjs/bullmq` 11→12 (deben moverse juntos).
+
+---
+
 ## 5. Monitoreo ✅ (resuelto 2026-09-13)
 
 Los logs solo viven en stdout del proceso NestJS. Si el proceso muere o el
@@ -487,5 +551,7 @@ verificación en browser.
 | WebSocket /chat 404 (sección 10.1) | Chat → HTTP + página pública | ✅ resuelto (2026-09-13) |
 | Dashboard no auto-refresca (sección 10.2) | UX | ✅ resuelto (2026-09-13) |
 | Gateway SIMULADO no en enum (sección 10.3) | 1 enum | ✅ resuelto (2026-09-13) |
+| Node.js 20 → 22 (sección 4.4) | Docker (2 etapas) + CI + engines + .nvmrc + Vercel dashboard | ⚠️ planificado (2026-09-23), no ejecutado |
+| Patch/minor deps (sección 4.5) | 9 paquetes, sin migración | ⚠️ planificado (2026-09-23), no ejecutado |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).
