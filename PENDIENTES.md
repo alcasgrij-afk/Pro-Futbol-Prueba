@@ -357,10 +357,10 @@ directamente (no solo `require`) — confirma que el addon nativo funciona en
 Alpine + Node 22 en runtime, no solo que compila. `next build` (18/18
 rutas) + `next start`: `/`, `/admin`, `/reservar`, `/login` → 200.
 
-**Pendiente fuera del repo:** actualizar el "Node.js Version" del proyecto
-`apps/web` en el dashboard de Vercel (no hay `vercel.json` que lo fije
-desde el repo). El deploy a Render (que sí toma el Dockerfile) queda
-pendiente de que el equipo decida cuándo promoverlo.
+**✅ Desplegado (2026-09-24):** "Node.js Version" del proyecto `apps/web`
+actualizado a 22.x en el dashboard de Vercel (no hay `vercel.json` que lo
+fije desde el repo), y push a `main` (`5b8fa7b`) disparó el deploy. Vercel
+confirmado en producción sin errores, mostrando el commit correcto.
 
 ### 4.5 Actualizaciones patch/minor pendientes (planificado — 2026-09-23)
 
@@ -568,7 +568,7 @@ verificación en browser.
 | WebSocket /chat 404 (sección 10.1) | Chat → HTTP + página pública | ✅ resuelto (2026-09-13) |
 | Dashboard no auto-refresca (sección 10.2) | UX | ✅ resuelto (2026-09-13) |
 | Gateway SIMULADO no en enum (sección 10.3) | 1 enum | ✅ resuelto (2026-09-13) |
-| Node.js 20 → 22 (sección 4.4) | Docker (2 etapas) + CI + engines + .nvmrc + Vercel dashboard | ✅ resuelto (2026-09-23) local+Docker; Vercel dashboard y deploy a Render pendientes |
+| Node.js 20 → 22 (sección 4.4) | Docker (2 etapas) + CI + engines + .nvmrc + Vercel dashboard | ✅ resuelto y desplegado (2026-09-24): Vercel en producción confirmado sin errores |
 | Patch/minor deps (sección 4.5) | 9 paquetes, sin migración | ⚠️ planificado (2026-09-23), no ejecutado |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).
