@@ -362,18 +362,18 @@ actualizado a 22.x en el dashboard de Vercel (no hay `vercel.json` que lo
 fije desde el repo), y push a `main` (`5b8fa7b`) disparó el deploy. Vercel
 confirmado en producción sin errores, mostrando el commit correcto.
 
-### 4.5 Actualizaciones patch/minor pendientes (planificado — 2026-09-23)
+### 4.5 Actualizaciones patch/minor ✅ (resuelto 2026-09-23, commit `923f918`)
 
-`npm outdated --workspaces` (2026-09-23) — estas son compatibles hacia atrás,
-sin trabajo de migración, y **no dependen** del bump de Node (se pueden hacer
-antes, después o el mismo día):
+`npm outdated --workspaces` (2026-09-23) identificó estas como compatibles
+hacia atrás, sin trabajo de migración, y sin depender del bump de Node:
 
 `@nestjs/cli`, `@nestjs/common`/`core`/`platform-express`/`testing` (11.2.5→11.2.6),
 `@sentry/nestjs` (→10.75.3, **no** el major 11), `rxjs`, `supertest`, `ts-jest`,
 `framer-motion`, `class-validator`, `eslint-config-prettier`.
 
-**Secuencia:** `npm update` en la raíz → `npm run build` → `npm run test:cov -w apps/api`
-→ commit único ("chore: bump patch/minor deps").
+**Ejecutado:** `npm update` en la raíz. Verificado: build limpio (shared-types +
+api + web, 18/18 rutas), lint limpio en ambas apps, 131/131 tests de api
+(`test:cov`, exit 0).
 
 **Deferred — majors que requieren su propia migración** (catalogados, no
 agendados): Tailwind 3→4 (PR de Dependabot ya abierto), ESLint 8→10 (implica
@@ -569,6 +569,6 @@ verificación en browser.
 | Dashboard no auto-refresca (sección 10.2) | UX | ✅ resuelto (2026-09-13) |
 | Gateway SIMULADO no en enum (sección 10.3) | 1 enum | ✅ resuelto (2026-09-13) |
 | Node.js 20 → 22 (sección 4.4) | Docker (2 etapas) + CI + engines + .nvmrc + Vercel dashboard | ✅ resuelto y desplegado (2026-09-24): Vercel en producción confirmado sin errores |
-| Patch/minor deps (sección 4.5) | 9 paquetes, sin migración | ⚠️ planificado (2026-09-23), no ejecutado |
+| Patch/minor deps (sección 4.5) | 9 paquetes, sin migración | ✅ resuelto (2026-09-23): commit `923f918`, 131/131 tests |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).
