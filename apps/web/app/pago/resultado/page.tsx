@@ -6,6 +6,15 @@ import Link from 'next/link';
 
 type EstadoPago = 'CARGANDO' | 'PENDIENTE' | 'COMPLETADO' | 'FALLIDO' | 'ERROR';
 
+/** "2026-09-14T00:00:00.000Z" -> "lunes 14 de septiembre" (mediodia local evita desfases TZ). */
+function formatearFechaLarga(iso: string): string {
+  return new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-GT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
 /**
  * Pagina de resultado de pago. `?ref=<paymentId>&simulado=1` apunta a un pago
  * del gateway. En desarrollo (simulado) se confirma localmente; luego se hace
@@ -17,7 +26,14 @@ function Resultado() {
   const simulado = params.get('simulado') === '1';
 
   const [estado, setEstado] = useState<EstadoPago>('CARGANDO');
-  const [detalle, setDetalle] = useState<{ montoQ: number; canchaNombre?: string; tipoReferencia?: string; descripcion?: string } | null>(null);
+  const [detalle, setDetalle] = useState<{
+    montoQ: number;
+    canchaNombre?: string;
+    tipoReferencia?: string;
+    descripcion?: string;
+    fecha?: string;
+    horaInicio?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!ref) {
@@ -44,7 +60,14 @@ function Resultado() {
       if (!r.ok) throw new Error('No se encontro el pago.');
       const pago = await r.json();
       if (cancelado) return;
-      setDetalle({ montoQ: pago.montoQ, canchaNombre: pago.canchaNombre, tipoReferencia: pago.tipoReferencia, descripcion: pago.descripcion });
+      setDetalle({
+        montoQ: pago.montoQ,
+        canchaNombre: pago.canchaNombre,
+        tipoReferencia: pago.tipoReferencia,
+        descripcion: pago.descripcion,
+        fecha: pago.fecha,
+        horaInicio: pago.horaInicio,
+      });
 
       if (pago.estado === 'COMPLETADO') return setEstado('COMPLETADO');
       if (pago.estado === 'FALLIDO' || pago.estado === 'CANCELADO') return setEstado('FALLIDO');
@@ -101,6 +124,12 @@ function Resultado() {
           <div className="text-sm text-gray-600 space-y-1">
             {detalle.descripcion && <p>{detalle.descripcion}</p>}
             {!detalle.descripcion && detalle.canchaNombre && <p>Cancha: <span className="font-medium">{detalle.canchaNombre}</span></p>}
+            {estado === 'COMPLETADO' && detalle.fecha && detalle.horaInicio && (
+              <p>
+                Reservaste el <span className="font-medium">{formatearFechaLarga(detalle.fecha)}</span> a las{' '}
+                <span className="font-medium">{detalle.horaInicio}</span>.
+              </p>
+            )}
             <p>Monto: <span className="font-medium">Q{detalle.montoQ}</span></p>
           </div>
         )}

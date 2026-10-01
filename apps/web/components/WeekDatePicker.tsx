@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TipoCancha, type CanchaDTO } from '@profutbol/shared-types';
 import { hoyISODias } from '../lib/fechas';
 
@@ -44,6 +44,23 @@ function diasDesdeHoy(fechaISO: string): number {
   return Math.round((objetivo.getTime() - hoy.getTime()) / 86400000);
 }
 
+// Minutos desde medianoche, hora local. Se usa para atenuar/saltar los
+// horarios ya pasados del dia de hoy (mismo formato que horaInicioMin del
+// backend, ver disponibilidad.util.ts).
+function horaActualMin(): number {
+  const ahora = new Date();
+  return ahora.getHours() * 60 + ahora.getMinutes();
+}
+
+function horaAMinutos(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Ancho de cada columna de hora en la grilla (ver gridTemplateColumns mas
+// abajo: 40px de columna + 3px de gap).
+const ANCHO_COLUMNA_PX = 43;
+
 function CheckIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="#123a22" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -75,6 +92,7 @@ export default function WeekDatePicker({
   selectedSlot,
   onSelectSlot,
   locked = false,
+  resaltar = false,
 }: {
   value: string;
   confirmed: boolean;
@@ -84,10 +102,14 @@ export default function WeekDatePicker({
   // fecha se deshabilitan para que el usuario se enfoque en esa unica opcion;
   // se desbloquea desde afuera con el boton "Cambiar horario".
   locked?: boolean;
+  // Reactiva el glow de "prestame atencion" desde afuera (ej. al volver aca
+  // con "Cambiar horario"), igual al que ya corre una vez al montar.
+  resaltar?: boolean;
 }) {
   const [canchas, setCanchas] = useState<CanchaDTO[] | null>(null);
   const [porCancha, setPorCancha] = useState<Record<string, InfoCancha>>({});
   const [glowActivo, setGlowActivo] = useState(true);
+  const gridsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const [flashKey, setFlashKey] = useState<string | null>(null);
   const [aviso, setAviso] = useState(false);
   // Offset en dias desde hoy de la fecha que se esta mostrando (activo) y del
@@ -100,6 +122,9 @@ export default function WeekDatePicker({
 
   const fechaActiva = hoyISODias(indiceActivo);
   const diaActivoConfirmado = confirmed && !!selectedSlot && value === fechaActiva;
+  // Offset 0 == hoy (ver hoyISODias): solo hoy tiene horarios "pasados" que
+  // atenuar, un dia futuro siempre arranca completo desde la primera hora.
+  const esHoy = indiceActivo === 0;
 
   useEffect(() => {
     const t = setTimeout(() => setGlowActivo(false), GLOW_DURACION_MS);
@@ -165,6 +190,21 @@ export default function WeekDatePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaActiva]);
 
+  // Al mostrar el dia de hoy, arranca cada grilla scrolleada hasta la primera
+  // hora que todavia no paso (en vez de la primera hora del dia, que para la
+  // tarde/noche ya no sirve de nada). Dias futuros no necesitan esto.
+  useEffect(() => {
+    if (!esHoy) return;
+    const ahora = horaActualMin();
+    for (const [canchaId, info] of Object.entries(porCancha)) {
+      if (info === 'error' || !info) continue;
+      const el = gridsRef.current.get(canchaId);
+      if (!el) continue;
+      const indice = info.bloques.findIndex((b) => horaAMinutos(b.horaInicio) >= ahora);
+      if (indice > 0) el.scrollLeft = indice * ANCHO_COLUMNA_PX;
+    }
+  }, [esHoy, porCancha]);
+
   function tocarNoDisponible(key: string) {
     setFlashKey(key);
     setAviso(true);
@@ -205,7 +245,7 @@ export default function WeekDatePicker({
           Horario No Disponible
         </div>
       )}
-      {!confirmed && glowActivo && (
+      {((!confirmed && glowActivo) || resaltar) && (
         <div aria-hidden className="absolute -inset-1.5 rounded-[28px] bg-[#0b8ff5]/40 blur-xl motion-safe:animate-pulse" />
       )}
       <div
@@ -299,7 +339,13 @@ export default function WeekDatePicker({
                   ) : info === 'error' ? (
                     <span className="text-[10px] italic opacity-60 text-white">Sin datos de disponibilidad.</span>
                   ) : (
-                    <div className="overflow-x-auto pb-0.5 [scrollbar-width:thin]">
+                    <div
+                      ref={(el) => {
+                        if (el) gridsRef.current.set(c.id, el);
+                        else gridsRef.current.delete(c.id);
+                      }}
+                      className="overflow-x-auto pb-0.5 [scrollbar-width:thin]"
+                    >
                       <div
                         className="grid gap-x-[3px] gap-y-1.5 items-center"
                         style={{
@@ -316,6 +362,19 @@ export default function WeekDatePicker({
                         <span aria-hidden className="sticky left-0" />
                         {info.bloques.map((b) => {
                             const key = `${fechaActiva}-${c.id}-${b.horaInicio}`;
+                            const esPasado = esHoy && horaAMinutos(b.horaInicio) < horaActualMin();
+                            if (esPasado) {
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  aria-disabled="true"
+                                  disabled
+                                  title={`${b.horaInicio}–${b.horaFin}: Ya paso`}
+                                  className="aspect-square rounded-[9px] border-0 p-0 bg-white/10 cursor-not-allowed"
+                                />
+                              );
+                            }
                             if (!b.disponible) {
                               return (
                                 <button

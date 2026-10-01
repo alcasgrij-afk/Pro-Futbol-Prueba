@@ -89,6 +89,9 @@ export default function ReservarPage() {
   const [slotSeleccionado, setSlotSeleccionado] = useState<SlotElegido | null>(null);
   // El boton "Reservar Ahora" se resalta una sola vez al elegir horario.
   const [resaltarInicio, setResaltarInicio] = useState(false);
+  // El selector de fecha/horario se vuelve a resaltar al volver a el con
+  // "Cambiar horario" (mismo glow que ya corre una vez al montar).
+  const [resaltarPicker, setResaltarPicker] = useState(false);
   // true tras presionar "Reservar Ahora": oculta el selector de horarios
   // (el horario ya quedo elegido arriba, no hace falta seguir mostrandolo).
   const [chatIniciado, setChatIniciado] = useState(false);
@@ -107,6 +110,8 @@ export default function ReservarPage() {
   const [ahoraMs, setAhoraMs] = useState(() => Date.now());
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const finRef = useRef<HTMLDivElement>(null);
+  const reservarBtnRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!pagoIniciado) return;
@@ -229,14 +234,15 @@ export default function ReservarPage() {
     setFecha(slot.fecha);
     setFechaConfirmada(true);
     setSlotSeleccionado(slot);
-    // Llevar al usuario al chat ya activo, en vez de dejarlo parado en el
-    // selector de horario sin saber que el siguiente paso es mas abajo.
-    focusChat();
-  }, [focusChat]);
+  }, []);
 
   useEffect(() => {
     if (!slotSeleccionado) return;
     setResaltarInicio(true);
+    // Salta directo al boton "Reservar Ahora" (vive dentro de #chatArea, asi
+    // que esto cubre tambien "llevar al chat"), en vez de solo el tope de la
+    // seccion, que en pantallas chicas puede dejar el boton fuera de vista.
+    reservarBtnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     const t = setTimeout(() => setResaltarInicio(false), RESALTE_DURACION_MS);
     return () => clearTimeout(t);
   }, [slotSeleccionado]);
@@ -295,7 +301,19 @@ export default function ReservarPage() {
     setMensajes([]);
     setPagoIniciado(null);
     localStorage.removeItem(SESSION_KEY);
+    // Vuelve al selector de horario y lo resalta: sin esto el usuario queda
+    // parado en el chat (ya vacio) sin saber que el siguiente paso es arriba.
+    // El scroll real corre en el effect de abajo, una vez que el picker
+    // vuelve a estar montado (aca todavia esta oculto por chatIniciado=true).
+    setResaltarPicker(true);
   }, []);
+
+  useEffect(() => {
+    if (!resaltarPicker) return;
+    pickerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setResaltarPicker(false), RESALTE_DURACION_MS);
+    return () => clearTimeout(t);
+  }, [resaltarPicker]);
 
   function encogerTextarea(e: { currentTarget: HTMLTextAreaElement }) {
     const el = e.currentTarget;
@@ -504,13 +522,16 @@ export default function ReservarPage() {
           {/* Selector semanal: elige fecha+cancha+horario de una vez. Se oculta
               tras arrancar el chat: el horario ya quedo elegido arriba. */}
           {!chatIniciado && (
-            <WeekDatePicker
-              value={fecha}
-              confirmed={fechaConfirmada}
-              selectedSlot={slotSeleccionado ? { canchaId: slotSeleccionado.canchaId, horaInicio: slotSeleccionado.horaInicio } : null}
-              onSelectSlot={elegirSlot}
-              locked={!!slotSeleccionado}
-            />
+            <div ref={pickerRef}>
+              <WeekDatePicker
+                value={fecha}
+                confirmed={fechaConfirmada}
+                selectedSlot={slotSeleccionado ? { canchaId: slotSeleccionado.canchaId, horaInicio: slotSeleccionado.horaInicio } : null}
+                onSelectSlot={elegirSlot}
+                locked={!!slotSeleccionado}
+                resaltar={resaltarPicker}
+              />
+            </div>
           )}
         </div>
       </section>
@@ -594,6 +615,7 @@ export default function ReservarPage() {
                     </div>
                     <div className="flex flex-wrap gap-2 pl-9">
                       <button
+                        ref={reservarBtnRef}
                         onClick={comenzarChat}
                         disabled={cargando || !fechaConfirmada}
                         className={`min-h-11 rounded-full border border-[#bddff7] bg-white text-[#0d76e8] px-3 py-1.5 text-xs font-black hover:bg-[#f7fcff] disabled:opacity-40 transition-all ${

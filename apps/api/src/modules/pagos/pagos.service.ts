@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { EstadoPago, GatewayPago, TipoPagoReferencia } from '@profutbol/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReservasService } from '../reservas/reservas.service';
+import { minutosAHora } from '../canchas/disponibilidad.util';
 import { GatewayService } from './gateways/gateway.service';
 
 @Injectable()
@@ -155,7 +156,9 @@ export class PagosService {
   async obtenerPago(id: string) {
     const pago = await this.prisma.pago.findUnique({
       where: { id },
-      include: { reserva: { select: { estado: true, cancha: { select: { nombre: true } } } } },
+      include: {
+        reserva: { select: { estado: true, fecha: true, horaInicioMin: true, cancha: { select: { nombre: true } } } },
+      },
     });
     if (!pago) throw new NotFoundException('Pago no encontrado.');
 
@@ -200,6 +203,8 @@ export class PagosService {
       referenciaId: pago.referenciaId,
       reservaEstado: pago.reserva?.estado ?? null,
       canchaNombre: pago.reserva?.cancha?.nombre ?? null,
+      fecha: pago.reserva?.fecha ?? null,
+      horaInicio: pago.reserva?.horaInicioMin != null ? minutosAHora(pago.reserva.horaInicioMin) : null,
       montoQ: Number(pago.montoQ),
       confirmadoEn: pago.confirmadoEn,
     };
