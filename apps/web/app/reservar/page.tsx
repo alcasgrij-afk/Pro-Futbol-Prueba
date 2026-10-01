@@ -148,7 +148,11 @@ export default function ReservarPage() {
     // No auto-scrollear en el mount inicial (mensajes=[]): eso empujaria la
     // pagina entera hacia el chat y taparia el hero "Reserva tu cancha".
     if (mensajes.length === 0) return;
-    finRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    // block:'end' (no el default 'start'): con 'start' el marcador vacio
+    // quedaba pegado arriba del viewport y el ultimo mensaje (con los botones
+    // de pagar en linea/sede) terminaba scrolleado por encima, fuera de vista,
+    // mostrando solo la caja de texto de abajo.
+    finRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'end' });
   }, [mensajes]);
 
   // --- Paso activo del stepper (derivado de la conversacion) ---
@@ -410,7 +414,7 @@ export default function ReservarPage() {
                 disabled={cargando || !contactoNombre.trim() || contactoTelefono.length !== 8}
                 className="min-h-11 rounded-full bg-[#0d76e8] text-white px-3 py-1.5 text-xs font-black hover:bg-[#0b66c4] disabled:opacity-40 transition-colors"
               >
-                Enviar contacto
+                Enviar datos de reserva
               </button>
             </div>
           )}
@@ -550,7 +554,7 @@ export default function ReservarPage() {
                   <div className="font-black text-sm">Asistente de reservas</div>
                   <div className="text-xs font-extrabold text-[#0ca678]">
                     <span className="inline-block w-2 h-2 rounded-full bg-[#12b886] mr-1.5 shadow-[0_0_0_3px_rgba(18,184,134,.10)]" />
-                    En línea · responde rápido
+                    En línea · respuesta inmediata
                   </div>
                 </div>
               </div>
