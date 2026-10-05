@@ -61,6 +61,25 @@ enum TipoPagoReferencia {
   RESERVA
   EQUIPO
   MENSUALIDAD
+  VENTA
+}
+
+enum ProductoCategoria {
+  TIENDA
+  ACADEMIA
+}
+
+enum EstadoVenta {
+  COMPLETADA
+  ANULADA
+}
+
+enum GastoCategoria {
+  MANTENIMIENTO
+  SUMINISTROS
+  SERVICIOS
+  NOMINA
+  OTROS
 }
 
 enum FormatoTorneo {
@@ -103,6 +122,7 @@ model Cliente {
   email     String?
   creadoEn  DateTime  @default(now())
   reservas  Reserva[]
+  ventas    Venta[]
 
   @@map("clientes")
 }
@@ -299,4 +319,67 @@ model Asistencia {
   // mismo dia actualiza el registro en vez de duplicarlo (upsert).
   @@unique([alumnoId, fecha])
   @@map("asistencias")
+}
+
+// ---------- Caja: ventas de productos/academia y gastos (Fase 6) ----------
+
+/// Catalogo de articulos vendibles en sede (tienda y academia). El precio se
+/// snapshotea en VentaItem al momento de la venta, asi que cambiar el precio
+/// aqui no reescribe ventas pasadas.
+model Producto {
+  id        String            @id @default(uuid())
+  nombre    String
+  categoria ProductoCategoria
+  precioQ   Decimal           @db.Decimal(10, 2)
+  activo    Boolean           @default(true)
+  items     VentaItem[]
+  creadoEn  DateTime          @default(now())
+
+  @@map("productos")
+}
+
+/// Venta de uno o mas productos/articulos en sede (walk-in). Su pago vive en
+/// Pago (tipoReferencia=VENTA, referenciaId=este id), igual que EQUIPO y
+/// MENSUALIDAD.
+model Venta {
+  id                 String      @id @default(uuid())
+  cliente            Cliente?    @relation(fields: [clienteId], references: [id])
+  clienteId          String?
+  creadoPorUsuarioId String?
+  estado             EstadoVenta @default(COMPLETADA)
+  montoTotalQ        Decimal     @db.Decimal(10, 2)
+  notas              String?
+  items              VentaItem[]
+  creadoEn           DateTime    @default(now())
+
+  @@map("ventas")
+}
+
+model VentaItem {
+  id               String    @id @default(uuid())
+  venta            Venta     @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  ventaId          String
+  producto         Producto? @relation(fields: [productoId], references: [id], onDelete: SetNull)
+  productoId       String?
+  nombreSnapshot   String
+  cantidad         Int
+  precioUnitarioQ  Decimal   @db.Decimal(10, 2)
+  subtotalQ        Decimal   @db.Decimal(10, 2)
+
+  @@map("venta_items")
+}
+
+/// Gasto operativo (mantenimiento, suministros, servicios, nomina, etc.)
+/// registrado manualmente desde el modulo de Caja para el reporte diario/mensual.
+model Gasto {
+  id                     String         @id @default(uuid())
+  categoria              GastoCategoria
+  montoQ                 Decimal        @db.Decimal(10, 2)
+  descripcion            String?
+  fecha                  DateTime       @db.Date
+  registradoPorUsuarioId String?
+  creadoEn               DateTime       @default(now())
+
+  @@index([fecha])
+  @@map("gastos")
 }

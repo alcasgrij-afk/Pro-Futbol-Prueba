@@ -7,13 +7,15 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
-import { GatewayPago } from '@profutbol/shared-types';
+import { GatewayPago, RolUsuario } from '@profutbol/shared-types';
 import { PagosService } from './pagos.service';
 import { CrearPagoDto } from './dto/crear-pago.dto';
+import { CobrarSedeDto } from '../reservas/dto/cobrar-sede.dto';
 import { Public } from '../../common/decorators/public.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { verificarFirmaHmac } from './hmac.util';
 
 @ApiTags('payments')
@@ -36,6 +38,15 @@ export class PagosController {
   @Get(':id')
   obtener(@Param('id') id: string) {
     return this.pagosService.obtenerPago(id);
+  }
+
+  // Modulo de Caja: cobra una reserva walk-in en efectivo (crea la reserva
+  // y la confirma en el mismo paso).
+  @ApiBearerAuth()
+  @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
+  @Post('reservas/cobrar-sede')
+  cobrarReservaSede(@Body() dto: CobrarSedeDto) {
+    return this.pagosService.cobrarReservaSede(dto);
   }
 
   /**

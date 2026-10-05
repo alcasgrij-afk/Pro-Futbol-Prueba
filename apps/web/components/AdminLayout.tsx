@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { CalendarBlank, ChartBar, GraduationCap, House, Trophy } from '@phosphor-icons/react';
+import { CalendarBlank, ChartBar, GraduationCap, House, Trophy, Wallet } from '@phosphor-icons/react';
 import { borrarToken, obtenerToken } from '../lib/api-client';
 
 const NAV = [
   { href: '/admin', label: 'Inicio', icon: House, exacto: true },
   { href: '/reservas', label: 'Reservas', icon: CalendarBlank, exacto: false },
+  { href: '/admin/caja', label: 'Caja', icon: Wallet, exacto: false },
   { href: '/admin/torneos', label: 'Torneos', icon: Trophy, exacto: false },
   { href: '/admin/academia', label: 'Academia', icon: GraduationCap, exacto: false },
   { href: '/admin/reportes', label: 'Reportes', icon: ChartBar, exacto: false },

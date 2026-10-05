@@ -14,6 +14,9 @@ import { ChatModule } from './modules/chat/chat.module';
 import { TorneosModule } from './modules/torneos/torneos.module';
 import { AcademiaModule } from './modules/academia/academia.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
+import { ProductosModule } from './modules/productos/productos.module';
+import { VentasModule } from './modules/ventas/ventas.module';
+import { GastosModule } from './modules/gastos/gastos.module';
 import { AppController } from './app.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -37,6 +40,9 @@ import { RolesGuard } from './common/guards/roles.guard';
     TorneosModule,
     AcademiaModule,
     ReportesModule,
+    ProductosModule,
+    VentasModule,
+    GastosModule,
   ],
   controllers: [AppController],
   providers: [

@@ -49,6 +49,25 @@ export enum TipoPagoReferencia {
   RESERVA = 'RESERVA',
   EQUIPO = 'EQUIPO',
   MENSUALIDAD = 'MENSUALIDAD',
+  VENTA = 'VENTA',
+}
+
+export enum ProductoCategoria {
+  TIENDA = 'TIENDA',
+  ACADEMIA = 'ACADEMIA',
+}
+
+export enum EstadoVenta {
+  COMPLETADA = 'COMPLETADA',
+  ANULADA = 'ANULADA',
+}
+
+export enum GastoCategoria {
+  MANTENIMIENTO = 'MANTENIMIENTO',
+  SUMINISTROS = 'SUMINISTROS',
+  SERVICIOS = 'SERVICIOS',
+  NOMINA = 'NOMINA',
+  OTROS = 'OTROS',
 }
 
 export enum FormatoTorneo {
@@ -305,4 +324,80 @@ export interface AsistenciaDTO {
   fecha: string;
   presente: boolean;
   creadoEn: string;
+}
+
+// ---------- Caja: productos, ventas y gastos (Fase 6) ----------
+
+export interface ProductoDTO {
+  id: string;
+  nombre: string;
+  categoria: ProductoCategoria;
+  precioQ: number;
+  activo: boolean;
+  creadoEn: string;
+}
+
+export interface VentaItemDTO {
+  id: string;
+  productoId?: string | null;
+  nombreSnapshot: string;
+  cantidad: number;
+  precioUnitarioQ: number;
+  subtotalQ: number;
+}
+
+export interface VentaDTO {
+  id: string;
+  clienteId?: string | null;
+  cliente?: ClienteDTO | null;
+  estado: EstadoVenta;
+  montoTotalQ: number;
+  notas?: string | null;
+  items: VentaItemDTO[];
+  creadoEn: string;
+}
+
+export interface CrearVentaInput {
+  clienteTelefono?: string;
+  clienteNombre?: string;
+  items: { productoId: string; cantidad: number }[];
+  notas?: string;
+}
+
+export interface GastoDTO {
+  id: string;
+  categoria: GastoCategoria;
+  montoQ: number;
+  descripcion?: string | null;
+  fecha: string;
+  creadoEn: string;
+}
+
+export interface CrearGastoInput {
+  categoria: GastoCategoria;
+  montoQ: number;
+  descripcion?: string;
+  fecha: string;
+}
+
+export interface ResumenGastosDTO {
+  desde: string;
+  hasta: string;
+  totalQ: number;
+  porCategoria: { categoria: GastoCategoria; totalQ: number; cantidad: number }[];
+}
+
+/** Igual a CrearReservaInput, sin formaPago: el cobro en sede siempre es EN_SEDE. */
+export interface CobrarSedeInput {
+  canchaId: string;
+  clienteTelefono: string;
+  clienteNombre: string;
+  fecha: string;
+  horaInicio: string;
+}
+
+export interface ReprogramarReservaInput {
+  canchaId?: string;
+  fecha?: string;
+  horaInicio?: string;
 }

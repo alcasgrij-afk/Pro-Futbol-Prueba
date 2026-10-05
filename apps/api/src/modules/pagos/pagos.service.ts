@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EstadoPago, GatewayPago, TipoPagoReferencia } from '@profutbol/shared-types';
+import { EstadoPago, FormaPago, GatewayPago, TipoPagoReferencia } from '@profutbol/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReservasService } from '../reservas/reservas.service';
 import { minutosAHora } from '../canchas/disponibilidad.util';
@@ -196,6 +196,24 @@ export class PagosService {
       };
     }
 
+    if (pago.tipoReferencia === TipoPagoReferencia.VENTA) {
+      const venta = await this.prisma.venta.findUnique({
+        where: { id: pago.referenciaId },
+        include: { items: true },
+      });
+      return {
+        paymentId: pago.id,
+        estado: pago.estado,
+        tipoReferencia: pago.tipoReferencia,
+        referenciaId: pago.referenciaId,
+        montoQ: Number(pago.montoQ),
+        confirmadoEn: pago.confirmadoEn,
+        descripcion: venta
+          ? venta.items.map((i) => `${i.cantidad}x ${i.nombreSnapshot}`).join(', ')
+          : 'Venta de productos',
+      };
+    }
+
     return {
       paymentId: pago.id,
       estado: pago.estado,
@@ -245,6 +263,53 @@ export class PagosService {
       await this.reservasService.confirmar(pago.referenciaId, payload.referenciaPago);
     }
     // EQUIPO: sin efecto adicional — cuotaPagada se calcula al leer la tabla de pagos.
+
+    return this.obtenerPago(pago.id);
+  }
+
+  /**
+   * Modulo de Caja: crea una reserva walk-in (EN_SEDE) y la cobra en
+   * efectivo en el mismo paso, quedando CONFIRMADA de inmediato (sin la
+   * ventana de 30 min de espera que aplica al flujo normal del bot).
+   */
+  async cobrarReservaSede(dto: {
+    canchaId: string;
+    clienteTelefono: string;
+    clienteNombre: string;
+    fecha: string;
+    horaInicio: string;
+  }) {
+    const reserva = await this.reservasService.crearReserva({ ...dto, formaPago: FormaPago.EN_SEDE });
+    return this.cobrarEfectivo({
+      tipoReferencia: TipoPagoReferencia.RESERVA,
+      referenciaId: reserva.id,
+      montoQ: Number(reserva.precioTotalQ),
+    });
+  }
+
+  /**
+   * Cobro en efectivo registrado desde el modulo de Caja (walk-in): crea el
+   * Pago ya COMPLETADO (el dinero se recibio en el momento, no hay gateway
+   * ni webhook de por medio) y, si es una reserva, la confirma de inmediato
+   * (cancela el job de liberacion por timeout via ReservasService.confirmar).
+   */
+  async cobrarEfectivo(input: { tipoReferencia: TipoPagoReferencia; referenciaId: string; montoQ: number }) {
+    const pago = await this.prisma.pago.create({
+      data: {
+        tipoReferencia: input.tipoReferencia,
+        referenciaId: input.referenciaId,
+        reservaId: input.tipoReferencia === TipoPagoReferencia.RESERVA ? input.referenciaId : null,
+        gateway: GatewayPago.EFECTIVO,
+        montoQ: input.montoQ,
+        estado: EstadoPago.COMPLETADO,
+        confirmadoEn: new Date(),
+        referenciaExterna: `efectivo-${Date.now()}`,
+      },
+    });
+
+    if (input.tipoReferencia === TipoPagoReferencia.RESERVA) {
+      await this.reservasService.confirmar(input.referenciaId, pago.referenciaExterna!);
+    }
 
     return this.obtenerPago(pago.id);
   }

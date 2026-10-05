@@ -1,6 +1,6 @@
 'use client';
 
-import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO } from '@profutbol/shared-types';
+import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO, ProductoDTO, VentaDTO, CrearVentaInput, GastoDTO, CrearGastoInput, ResumenGastosDTO, CobrarSedeInput, ReprogramarReservaInput } from '@profutbol/shared-types';
 
 const TOKEN_KEY = 'profutbol_access_token';
 const REFRESH_KEY = 'profutbol_refresh_token';
@@ -68,6 +68,20 @@ class ApiError extends Error {
   }
 }
 
+/** Forma de la respuesta de PagosService.obtenerPago (ver pagos.service.ts). */
+export interface PagoDetalle {
+  paymentId: string;
+  estado: string;
+  tipoReferencia: string;
+  referenciaId: string;
+  reservaEstado?: string | null;
+  canchaNombre?: string | null;
+  fecha?: string | null;
+  horaInicio?: string | null;
+  montoQ: number;
+  confirmadoEn?: string | null;
+}
+
 /** Resultado de intentar avanzar el bracket de eliminacion directa (Fase 3). */
 export interface BracketResultado {
   tipo: 'sin_cambios' | 'penalesPendientes' | 'avanzada' | 'campeon';
@@ -121,6 +135,42 @@ export const api = {
   confirmarReserva: (id: string) => request<ReservaDTO>(`/reservas/${id}/confirmar`, { method: 'PATCH' }),
 
   cancelarReserva: (id: string) => request<ReservaDTO>(`/reservas/${id}/cancelar`, { method: 'PATCH' }),
+
+  reprogramarReserva: (id: string, datos: ReprogramarReservaInput) =>
+    request<ReservaDTO>(`/reservas/${id}`, { method: 'PATCH', body: JSON.stringify(datos) }),
+
+  // ---- Caja: cobro en sede, productos, ventas y gastos (Fase 6) ----
+
+  cobrarReservaSede: (datos: CobrarSedeInput) =>
+    request<PagoDetalle>('/payments/reservas/cobrar-sede', { method: 'POST', body: JSON.stringify(datos) }),
+
+  listarProductos: (activo?: boolean) => {
+    const params = activo !== undefined ? `?activo=${activo}` : '';
+    return request<ProductoDTO[]>(`/productos${params}`);
+  },
+
+  crearProducto: (datos: { nombre: string; categoria: string; precioQ: number }) =>
+    request<ProductoDTO>('/productos', { method: 'POST', body: JSON.stringify(datos) }),
+
+  actualizarProducto: (id: string, datos: { nombre?: string; precioQ?: number; activo?: boolean }) =>
+    request<ProductoDTO>(`/productos/${id}`, { method: 'PATCH', body: JSON.stringify(datos) }),
+
+  crearVenta: (datos: CrearVentaInput) => request<VentaDTO>('/ventas', { method: 'POST', body: JSON.stringify(datos) }),
+
+  listarVentas: () => request<VentaDTO[]>('/ventas'),
+
+  anularVenta: (id: string) => request<VentaDTO>(`/ventas/${id}/anular`, { method: 'PATCH' }),
+
+  crearGasto: (datos: CrearGastoInput) => request<GastoDTO>('/gastos', { method: 'POST', body: JSON.stringify(datos) }),
+
+  listarGastos: (filtros: { desde?: string; hasta?: string } = {}) => {
+    const params = new URLSearchParams(filtros as Record<string, string>);
+    return request<GastoDTO[]>(`/gastos?${params.toString()}`);
+  },
+
+  eliminarGasto: (id: string) => request<{ ok: boolean }>(`/gastos/${id}`, { method: 'DELETE' }),
+
+  resumenGastos: (desde: string, hasta: string) => request<ResumenGastosDTO>(`/gastos/resumen?desde=${desde}&hasta=${hasta}`),
 
   // ---- Torneos (Fase 3) ----
 

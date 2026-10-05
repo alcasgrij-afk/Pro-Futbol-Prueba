@@ -6,7 +6,7 @@
  *  - Las 2 canchas del negocio (Futbol 5, Futbol 7) con su horario real.
  *  - Un usuario administrador inicial para poder entrar al panel admin.
  */
-import { PrismaClient, TipoCancha, RolUsuario } from '@prisma/client';
+import { PrismaClient, TipoCancha, RolUsuario, ProductoCategoria } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -62,10 +62,22 @@ async function main() {
     },
   });
 
+  // ---- Productos de Caja (placeholders, editables desde /admin/caja/productos) ----
+  const productos = [
+    { id: 'seed-producto-camiseta-academia', nombre: 'Camiseta Academia', categoria: ProductoCategoria.ACADEMIA, precioQ: 75 },
+    { id: 'seed-producto-inscripcion-academia', nombre: 'Inscripcion Academia', categoria: ProductoCategoria.ACADEMIA, precioQ: 250 },
+    { id: 'seed-producto-balon', nombre: 'Balon No. 5', categoria: ProductoCategoria.TIENDA, precioQ: 120 },
+    { id: 'seed-producto-agua', nombre: 'Botella de agua', categoria: ProductoCategoria.TIENDA, precioQ: 10 },
+  ];
+  for (const p of productos) {
+    await prisma.producto.upsert({ where: { id: p.id }, update: {}, create: p });
+  }
+
   console.log('Listo:');
   console.log(`  - ${canchaF5.nombre} (${canchaF5.id})`);
   console.log(`  - ${canchaF7.nombre} (${canchaF7.id})`);
   console.log(`  - Usuario admin: ${admin.email} / contrasena temporal: CambiarEsta123!`);
+  console.log(`  - ${productos.length} productos de Caja sembrados`);
 }
 
 main()

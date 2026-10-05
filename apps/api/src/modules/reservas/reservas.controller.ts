@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EstadoReserva, RolUsuario } from '@prisma/client';
 import { ReservasService } from './reservas.service';
 import { CrearReservaDto } from './dto/crear-reserva.dto';
+import { ReprogramarReservaDto } from './dto/reprogramar-reserva.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { minutosAHora } from '../canchas/disponibilidad.util';
@@ -44,6 +45,15 @@ export class ReservasController {
   async listar(@Query('fecha') fecha?: string, @Query('estado') estado?: EstadoReserva) {
     const rs = await this.reservasService.listar({ fecha, estado });
     return rs.map((r) => this.aDTO(r));
+  }
+
+  // Modulo de Caja: reagenda cancha/fecha/hora de una reserva existente
+  // (right-click "Modificar" en la grilla).
+  @ApiBearerAuth()
+  @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
+  @Patch(':id')
+  async reprogramar(@Param('id') id: string, @Body() dto: ReprogramarReservaDto) {
+    return this.aDTO(await this.reservasService.reprogramar(id, dto));
   }
 
   @ApiBearerAuth()

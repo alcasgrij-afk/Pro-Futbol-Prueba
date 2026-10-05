@@ -206,6 +206,62 @@ export class ReservasService {
     this.logger.log(`Reserva ${reservaId} liberada automaticamente por timeout de pago.`);
   }
 
+  /**
+   * Reagenda una reserva existente (cambio de cancha/fecha/hora) desde el
+   * modulo de Caja. Misma defensa en dos capas que crearReserva: lock de
+   * Redis sobre el horario destino + chequeo de conflicto dentro de la
+   * transaccion (excluyendo la propia reserva de la busqueda).
+   */
+  async reprogramar(
+    reservaId: string,
+    dto: { canchaId?: string; fecha?: string; horaInicio?: string },
+  ) {
+    const reserva = await this.obtenerPorId(reservaId);
+    if (!ESTADOS_ACTIVOS.includes(reserva.estado)) {
+      throw new BadRequestException(`No se puede reprogramar una reserva en estado ${reserva.estado}.`);
+    }
+
+    const canchaId = dto.canchaId ?? reserva.canchaId;
+    const fecha = dto.fecha ?? reserva.fecha.toISOString().slice(0, 10);
+    const cancha = dto.canchaId ? await this.canchasService.obtenerPorId(canchaId) : reserva.cancha;
+
+    const horaInicioMin = dto.horaInicio ? horaAMinutos(dto.horaInicio) : reserva.horaInicioMin;
+    const horaFinMin = horaInicioMin + cancha.duracionBloqueMin;
+
+    this.validarHorarioDentroDeOperacion(cancha, horaInicioMin, horaFinMin);
+
+    const claveLock = this.claveLockHorario(canchaId, fecha, horaInicioMin);
+    const lockObtenido = await this.redis.adquirirLock(claveLock, 10);
+    if (!lockObtenido) {
+      throw new ConflictException('Ese horario esta siendo modificado. Intenta de nuevo en unos segundos.');
+    }
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existente = await tx.reserva.findFirst({
+          where: {
+            id: { not: reservaId },
+            canchaId,
+            fecha: new Date(fecha),
+            horaInicioMin,
+            estado: { in: ESTADOS_ACTIVOS },
+          },
+        });
+        if (existente) {
+          throw new ConflictException('Ese horario ya esta ocupado. Elegi otro horario.');
+        }
+
+        return tx.reserva.update({
+          where: { id: reservaId },
+          data: { canchaId, fecha: new Date(fecha), horaInicioMin, horaFinMin },
+          include: { cancha: true, cliente: true },
+        });
+      });
+    } finally {
+      await this.redis.liberarLock(claveLock);
+    }
+  }
+
   async obtenerPorId(reservaId: string) {
     const reserva = await this.prisma.reserva.findUnique({
       where: { id: reservaId },
