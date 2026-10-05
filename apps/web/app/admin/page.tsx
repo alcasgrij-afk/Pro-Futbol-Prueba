@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CalendarBlank, ChartBar, ClipboardText, GraduationCap, Receipt, Trophy, UserPlus } from '@phosphor-icons/react';
+import { ArrowRight, CalendarBlank, ChartBar, ClipboardText, CreditCard, GraduationCap, Receipt, Storefront, Trophy, UserPlus } from '@phosphor-icons/react';
 
 // Landing del panel admin: hub de accesos a cada categoria. El shell (guarda
 // de sesion + sidebar) lo provee app/admin/layout.tsx via AdminLayout.
@@ -76,6 +76,22 @@ const ACCESOS_EXTRA = [
     tint: 'bg-rose-50',
     iconBg: 'bg-rose-100',
     iconColor: 'text-rose-600',
+  },
+  {
+    href: '/admin/caja/productos',
+    corto: 'Tienda y productos',
+    icon: Storefront,
+    tint: 'bg-lime-50',
+    iconBg: 'bg-lime-100',
+    iconColor: 'text-lime-600',
+  },
+  {
+    href: '/admin/pagos',
+    corto: 'Pagos',
+    icon: CreditCard,
+    tint: 'bg-indigo-50',
+    iconBg: 'bg-indigo-100',
+    iconColor: 'text-indigo-600',
   },
 ] as const;
 

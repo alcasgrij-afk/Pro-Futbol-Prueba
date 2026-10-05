@@ -82,6 +82,19 @@ export interface PagoDetalle {
   confirmadoEn?: string | null;
 }
 
+/** Forma de una fila de PagosService.listar (bitacora de /admin/pagos). */
+export interface PagoLedgerItem {
+  paymentId: string;
+  tipoReferencia: string;
+  etiqueta: string;
+  gateway: string;
+  estado: string;
+  montoQ: number;
+  descripcion: string | null;
+  creadoEn: string;
+  confirmadoEn: string | null;
+}
+
 /** Resultado de intentar avanzar el bracket de eliminacion directa (Fase 3). */
 export interface BracketResultado {
   tipo: 'sin_cambios' | 'penalesPendientes' | 'avanzada' | 'campeon';
@@ -171,6 +184,11 @@ export const api = {
   eliminarGasto: (id: string) => request<{ ok: boolean }>(`/gastos/${id}`, { method: 'DELETE' }),
 
   resumenGastos: (desde: string, hasta: string) => request<ResumenGastosDTO>(`/gastos/resumen?desde=${desde}&hasta=${hasta}`),
+
+  listarPagos: (filtros: { desde?: string; hasta?: string } = {}) => {
+    const params = new URLSearchParams(filtros as Record<string, string>);
+    return request<PagoLedgerItem[]>(`/payments?${params.toString()}`);
+  },
 
   // ---- Torneos (Fase 3) ----
 

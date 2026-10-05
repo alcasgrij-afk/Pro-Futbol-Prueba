@@ -6,6 +6,13 @@ import { ReservasService } from '../reservas/reservas.service';
 import { minutosAHora } from '../canchas/disponibilidad.util';
 import { GatewayService } from './gateways/gateway.service';
 
+const ETIQUETA_MODULO: Record<string, string> = {
+  RESERVA: 'Reserva de cancha',
+  EQUIPO: 'Cuota de torneo',
+  MENSUALIDAD: 'Mensualidad de academia',
+  VENTA: 'Venta de productos',
+};
+
 @Injectable()
 export class PagosService {
   private readonly logger = new Logger(PagosService.name);
@@ -312,6 +319,51 @@ export class PagosService {
     }
 
     return this.obtenerPago(pago.id);
+  }
+
+  /**
+   * Bitacora de pagos para el modulo de Caja (/admin/pagos): todos los Pago
+   * sin importar el modulo, mas recientes primero. Para RESERVA se incluye
+   * cancha + cliente (misma relacion que obtenerPago); para EQUIPO/
+   * MENSUALIDAD/VENTA la etiqueta del modulo ya es suficiente descripcion
+   * en un listado (el detalle completo esta en la pagina de cada modulo).
+   */
+  async listar(filtros: { desde?: string; hasta?: string }) {
+    const pagos = await this.prisma.pago.findMany({
+      where:
+        filtros.desde || filtros.hasta
+          ? {
+              creadoEn: {
+                ...(filtros.desde ? { gte: new Date(filtros.desde) } : {}),
+                ...(filtros.hasta ? { lte: this.finDelDia(filtros.hasta) } : {}),
+              },
+            }
+          : {},
+      include: {
+        reserva: { select: { cancha: { select: { nombre: true } }, cliente: { select: { nombre: true } } } },
+      },
+      orderBy: { creadoEn: 'desc' },
+    });
+
+    return pagos.map((p) => ({
+      paymentId: p.id,
+      tipoReferencia: p.tipoReferencia,
+      etiqueta: ETIQUETA_MODULO[p.tipoReferencia] ?? p.tipoReferencia,
+      gateway: p.gateway,
+      estado: p.estado,
+      montoQ: Number(p.montoQ),
+      descripcion: p.reserva
+        ? [p.reserva.cancha?.nombre, p.reserva.cliente?.nombre].filter(Boolean).join(' · ')
+        : null,
+      creadoEn: p.creadoEn,
+      confirmadoEn: p.confirmadoEn,
+    }));
+  }
+
+  private finDelDia(fecha: string): Date {
+    const d = new Date(fecha);
+    d.setHours(23, 59, 59, 999);
+    return d;
   }
 
   /** Confirma un pago simulado de desarrollo (equivale al webhook). */

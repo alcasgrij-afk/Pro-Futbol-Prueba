@@ -5,6 +5,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -38,6 +39,15 @@ export class PagosController {
   @Get(':id')
   obtener(@Param('id') id: string) {
     return this.pagosService.obtenerPago(id);
+  }
+
+  // Modulo de Caja: bitacora de pagos (ventas, reservas, cuotas, mensualidades)
+  // para el reporte imprimible de /admin/pagos.
+  @ApiBearerAuth()
+  @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
+  @Get()
+  listar(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
+    return this.pagosService.listar({ desde, hasta });
   }
 
   // Modulo de Caja: cobra una reserva walk-in en efectivo (crea la reserva

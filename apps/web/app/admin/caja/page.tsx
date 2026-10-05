@@ -35,6 +35,19 @@ function horaAMinutos(hhmm: string): number {
   return h * 60 + m;
 }
 
+// Franjas de 30 min entre apertura y cierre de la cancha, dejando espacio
+// para que el bloque completo (duracionBloqueMin) entre antes de cerrar.
+// Un <select> con estas opciones (en vez de <input type="time">) es la
+// forma mas simple de evitar que se elija un minuto fuera de la grilla.
+function generarSlots(cancha: CanchaConHorario | undefined): string[] {
+  if (!cancha) return [];
+  const slots: string[] = [];
+  for (let m = cancha.horaAperturaMin; m + cancha.duracionBloqueMin <= cancha.horaCierreMin; m += ROW_MIN) {
+    slots.push(minutosAHora(m));
+  }
+  return slots;
+}
+
 type Vista = 'F5' | 'F7' | 'AMBAS';
 
 export default function CajaPage() {
@@ -179,8 +192,14 @@ export default function CajaPage() {
             <div className="flex-none w-14 border-r border-gray-200">
               <div className="h-10 border-b border-gray-200" />
               {horasEje.map((min) => (
-                <div key={min} className="text-[10px] text-gray-400 text-right pr-1 -mt-1.5" style={{ height: ROW_PX }}>
-                  {min % 60 === 0 ? minutosAHora(min) : ''}
+                <div
+                  key={min}
+                  className={`flex items-center justify-end pr-1.5 border-b ${min % 60 === 0 ? 'border-gray-200' : 'border-gray-100'}`}
+                  style={{ height: ROW_PX }}
+                >
+                  <span className={`text-[10px] ${min % 60 === 0 ? 'font-semibold text-gray-600' : 'text-gray-400'}`}>
+                    {minutosAHora(min)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -341,6 +360,13 @@ function CobrarSedeModal({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const slots = useMemo(() => generarSlots(canchas.find((c) => c.id === form.canchaId)), [canchas, form.canchaId]);
+
+  function cambiarCancha(id: string) {
+    const nuevosSlots = generarSlots(canchas.find((c) => c.id === id));
+    setForm((f) => ({ ...f, canchaId: id, horaInicio: nuevosSlots.includes(f.horaInicio) ? f.horaInicio : (nuevosSlots[0] ?? f.horaInicio) }));
+  }
+
   async function cobrar() {
     if (!form.clienteNombre.trim() || form.clienteTelefono.length < 8) {
       setError('Nombre y telefono son requeridos.');
@@ -373,7 +399,7 @@ function CobrarSedeModal({
           Cancha
           <select
             value={form.canchaId}
-            onChange={(e) => setForm({ ...form, canchaId: e.target.value })}
+            onChange={(e) => cambiarCancha(e.target.value)}
             className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
           >
             {canchas.map((c) => (
@@ -384,12 +410,16 @@ function CobrarSedeModal({
 
         <label className="block text-xs font-medium text-gray-600">
           Hora
-          <input
-            type="time"
+          <select
             value={form.horaInicio}
             onChange={(e) => setForm({ ...form, horaInicio: e.target.value })}
-            className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
-          />
+            className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm bg-white"
+          >
+            {!slots.includes(form.horaInicio) && <option value={form.horaInicio}>{form.horaInicio}</option>}
+            {slots.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
         </label>
 
         <label className="block text-xs font-medium text-gray-600">
@@ -442,6 +472,13 @@ function ModificarReservaModal({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const slots = useMemo(() => generarSlots((canchas ?? []).find((c) => c.id === form.canchaId)), [canchas, form.canchaId]);
+
+  function cambiarCancha(id: string) {
+    const nuevosSlots = generarSlots((canchas ?? []).find((c) => c.id === id));
+    setForm((f) => ({ ...f, canchaId: id, horaInicio: nuevosSlots.includes(f.horaInicio) ? f.horaInicio : (nuevosSlots[0] ?? f.horaInicio) }));
+  }
+
   async function guardar() {
     setCargando(true);
     setError(null);
@@ -465,7 +502,7 @@ function ModificarReservaModal({
           Cancha
           <select
             value={form.canchaId}
-            onChange={(e) => setForm({ ...form, canchaId: e.target.value })}
+            onChange={(e) => cambiarCancha(e.target.value)}
             className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
           >
             {(canchas ?? []).map((c) => (
@@ -486,12 +523,16 @@ function ModificarReservaModal({
 
         <label className="block text-xs font-medium text-gray-600">
           Hora
-          <input
-            type="time"
+          <select
             value={form.horaInicio}
             onChange={(e) => setForm({ ...form, horaInicio: e.target.value })}
-            className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
-          />
+            className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm bg-white"
+          >
+            {!slots.includes(form.horaInicio) && <option value={form.horaInicio}>{form.horaInicio}</option>}
+            {slots.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
         </label>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
