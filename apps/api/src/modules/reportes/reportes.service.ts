@@ -6,6 +6,7 @@ const ETIQUETA_MODULO: Record<string, string> = {
   RESERVA: 'Reservas de cancha',
   EQUIPO: 'Cuotas de torneo',
   MENSUALIDAD: 'Mensualidades de academia',
+  VENTA: 'Venta de productos',
 };
 
 @Injectable()
@@ -154,9 +155,12 @@ export class ReportesService {
   }
 
   private finDelDia(fecha: string): Date {
-    const d = new Date(fecha);
-    d.setHours(23, 59, 59, 999);
-    return d;
+    // new Date(fecha) parsea como medianoche UTC; setHours() opera en hora
+    // LOCAL, asi que en un servidor con TZ distinto de UTC (America/Guatemala)
+    // terminaba fijando el fin del dia ANTERIOR. Construir desde componentes
+    // Y/M/D evita la mezcla UTC/local.
+    const [anio, mes, dia] = fecha.split('-').map(Number);
+    return new Date(anio, mes - 1, dia, 23, 59, 59, 999);
   }
 
   private contarDias(desde: string, hasta: string): number {

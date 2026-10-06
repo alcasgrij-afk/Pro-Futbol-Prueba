@@ -56,6 +56,16 @@ export class ReservasService {
     }
 
     const horaInicioMin = horaAMinutos(dto.horaInicio);
+
+    // Mismo guard, pero de hora: si la fecha es hoy, el horario tampoco puede
+    // haber pasado ya (protege tanto el bot como el cobro en sede del panel).
+    if (dto.fecha === hoyLocal) {
+      const minutosAhora = d.getHours() * 60 + d.getMinutes();
+      if (horaInicioMin < minutosAhora) {
+        throw new BadRequestException('No se puede reservar una hora que ya pasó.');
+      }
+    }
+
     const horaFinMin = horaInicioMin + cancha.duracionBloqueMin;
 
     this.validarHorarioDentroDeOperacion(cancha, horaInicioMin, horaFinMin);

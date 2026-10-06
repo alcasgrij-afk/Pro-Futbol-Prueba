@@ -80,6 +80,10 @@ export interface PagoDetalle {
   horaInicio?: string | null;
   montoQ: number;
   confirmadoEn?: string | null;
+  clienteNombre?: string | null;
+  clienteTelefono?: string | null;
+  gateway?: string;
+  codigoAutorizacion?: string | null;
 }
 
 /** Forma de una fila de PagosService.listar (bitacora de /admin/pagos). */

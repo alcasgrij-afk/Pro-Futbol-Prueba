@@ -47,6 +47,7 @@ enum GatewayPago {
   BAC
   NEONET
   EFECTIVO
+  TARJETA
   SIMULADO
 }
 
@@ -199,6 +200,7 @@ model Pago {
   montoQ            Decimal            @db.Decimal(10, 2)
   estado            EstadoPago         @default(PENDIENTE)
   referenciaExterna String?
+  codigoAutorizacion String?          // autorizacion de POS fisico, solo cuando gateway=TARJETA
   redirectUrl      String?
   confirmadoEn     DateTime?
   creadoEn         DateTime           @default(now())

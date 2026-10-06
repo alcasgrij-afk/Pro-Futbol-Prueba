@@ -41,6 +41,8 @@ export enum GatewayPago {
   BAC = 'BAC',
   NEONET = 'NEONET',
   EFECTIVO = 'EFECTIVO',
+  // Cobro con POS fisico en sede (no pasa por un gateway de redireccion).
+  TARJETA = 'TARJETA',
   // Gateway de desarrollo explicito: siempre genera la redireccion simulada.
   SIMULADO = 'SIMULADO',
 }
@@ -394,6 +396,8 @@ export interface CobrarSedeInput {
   clienteNombre: string;
   fecha: string;
   horaInicio: string;
+  metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
+  codigoAutorizacion?: string;
 }
 
 export interface ReprogramarReservaInput {

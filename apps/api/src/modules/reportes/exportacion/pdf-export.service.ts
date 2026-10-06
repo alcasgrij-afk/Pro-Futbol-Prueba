@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
-import { ReporteIngresosParaExportar, ReporteMorosidadParaExportar } from './excel-export.service';
+import { ReporteGastosParaExportar, ReporteIngresosParaExportar, ReporteMorosidadParaExportar } from './excel-export.service';
 
 const NAVY = '#00205B';
 const RED = '#E4032C';
@@ -66,6 +66,33 @@ export class PdfExportService {
       if (reporte.detalle.length === 0) {
         doc.fontSize(10).fillColor(GRAY).text('No hay pagos vencidos en este momento.');
       }
+    });
+  }
+
+  async generarReporteGastos(reporte: ReporteGastosParaExportar): Promise<Buffer> {
+    return this.construirDocumento((doc) => {
+      this.encabezado(doc, 'Reporte de Gastos');
+      doc.fontSize(10).fillColor(GRAY).text(`Periodo: ${reporte.desde} a ${reporte.hasta}`);
+      doc.moveDown(1);
+
+      doc.fontSize(20).fillColor(RED).text(`Q${reporte.totalQ.toLocaleString('es-GT')}`);
+      doc.moveDown(1.5);
+
+      doc.fontSize(13).fillColor(NAVY).text('Gastos por categoria');
+      doc.moveDown(0.3);
+      reporte.porCategoria.forEach((c) => {
+        doc
+          .fontSize(10)
+          .fillColor(GRAY)
+          .text(`${c.categoria}: Q${c.totalQ.toLocaleString('es-GT')} (${c.cantidad} gastos)`);
+      });
+      doc.moveDown(1.5);
+
+      doc.fontSize(13).fillColor(NAVY).text('Detalle');
+      doc.moveDown(0.3);
+      reporte.gastos.forEach((g) => {
+        doc.fontSize(10).fillColor(GRAY).text(`${g.fecha} — ${g.categoria} — Q${g.montoQ} — ${g.descripcion}`);
+      });
     });
   }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { EstadoReserva, TipoCancha, type CanchaDTO, type ReservaDTO } from '@profutbol/shared-types';
+import { EstadoReserva, GatewayPago, TipoCancha, type CanchaDTO, type ReservaDTO } from '@profutbol/shared-types';
 import { api, ApiError, type PagoDetalle } from '../../../lib/api-client';
 import { hoyISO } from '../../../lib/fechas';
 import ConfirmarModal from '../../../components/ConfirmarModal';
@@ -35,14 +35,23 @@ function horaAMinutos(hhmm: string): number {
   return h * 60 + m;
 }
 
+function minutosAhora(): number {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
 // Franjas de 30 min entre apertura y cierre de la cancha, dejando espacio
 // para que el bloque completo (duracionBloqueMin) entre antes de cerrar.
 // Un <select> con estas opciones (en vez de <input type="time">) es la
 // forma mas simple de evitar que se elija un minuto fuera de la grilla.
-function generarSlots(cancha: CanchaConHorario | undefined): string[] {
+// Si fecha es hoy, se descartan los horarios que ya pasaron (no se puede
+// cobrar/reprogramar en sede para una hora que ya quedo atras).
+function generarSlots(cancha: CanchaConHorario | undefined, fecha?: string): string[] {
   if (!cancha) return [];
+  const limiteMin = fecha === hoyISO() ? minutosAhora() : -1;
   const slots: string[] = [];
   for (let m = cancha.horaAperturaMin; m + cancha.duracionBloqueMin <= cancha.horaCierreMin; m += ROW_MIN) {
+    if (m < limiteMin) continue;
     slots.push(minutosAHora(m));
   }
   return slots;
@@ -95,6 +104,10 @@ export default function CajaPage() {
     return () => document.removeEventListener('click', cerrar);
   }, [menu]);
 
+  useEffect(() => {
+    if (recibo) window.print();
+  }, [recibo]);
+
   const canchasMostradas = useMemo(() => {
     if (!canchas) return [];
     if (vista === 'AMBAS') return canchas;
@@ -123,6 +136,7 @@ export default function CajaPage() {
   function abrirCobroDesdeClick(canchaId: string, offsetY: number) {
     const bloque = Math.floor(offsetY / ROW_PX);
     const minutos = aperturaMin + bloque * ROW_MIN;
+    if (fecha === hoyISO() && minutos < minutosAhora()) return; // hora ya pasada, no abrir el modal
     setCobroModal({ canchaId, horaInicio: minutosAHora(minutos) });
   }
 
@@ -172,6 +186,7 @@ export default function CajaPage() {
             type="date"
             aria-label="Fecha"
             value={fecha}
+            min={hoyISO()}
             onChange={(e) => setFecha(e.target.value)}
             suppressHydrationWarning
             className="min-h-11 rounded-md border border-gray-500 px-3 text-sm"
@@ -324,7 +339,9 @@ export default function CajaPage() {
           <ReciboImprimible
             titulo="Recibo de cobro — Cancha"
             subtitulo={`${recibo.canchaNombre ?? ''} · ${recibo.fecha?.slice(0, 10) ?? fecha} ${recibo.horaInicio ?? ''}`}
-            lineas={[{ label: recibo.canchaNombre ?? 'Reserva de cancha', detalle: 'Pago en efectivo', valor: `Q${recibo.montoQ}` }]}
+            cliente={{ nombre: recibo.clienteNombre ?? undefined, telefono: recibo.clienteTelefono ?? undefined }}
+            metodoPago={recibo.gateway === GatewayPago.TARJETA ? `Tarjeta · autorización ${recibo.codigoAutorizacion ?? ''}` : 'Efectivo'}
+            lineas={[{ label: recibo.canchaNombre ?? 'Reserva de cancha', detalle: 'Reserva de cancha', valor: `Q${recibo.montoQ}` }]}
             totalQ={recibo.montoQ}
           />
           <div className="print:hidden fixed bottom-4 right-4 flex gap-2 z-50">
@@ -356,20 +373,31 @@ function CobrarSedeModal({
   onClose: () => void;
   onCobrado: (detalle: PagoDetalle) => void;
 }) {
-  const [form, setForm] = useState({ canchaId, horaInicio, clienteNombre: '', clienteTelefono: '' });
+  const [form, setForm] = useState({
+    canchaId,
+    horaInicio,
+    clienteNombre: '',
+    clienteTelefono: '',
+    metodoPago: GatewayPago.EFECTIVO as GatewayPago.EFECTIVO | GatewayPago.TARJETA,
+    codigoAutorizacion: '',
+  });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const slots = useMemo(() => generarSlots(canchas.find((c) => c.id === form.canchaId)), [canchas, form.canchaId]);
+  const slots = useMemo(() => generarSlots(canchas.find((c) => c.id === form.canchaId), fecha), [canchas, form.canchaId, fecha]);
 
   function cambiarCancha(id: string) {
-    const nuevosSlots = generarSlots(canchas.find((c) => c.id === id));
+    const nuevosSlots = generarSlots(canchas.find((c) => c.id === id), fecha);
     setForm((f) => ({ ...f, canchaId: id, horaInicio: nuevosSlots.includes(f.horaInicio) ? f.horaInicio : (nuevosSlots[0] ?? f.horaInicio) }));
   }
 
   async function cobrar() {
     if (!form.clienteNombre.trim() || form.clienteTelefono.length < 8) {
       setError('Nombre y telefono son requeridos.');
+      return;
+    }
+    if (form.metodoPago === GatewayPago.TARJETA && !/^\d{6,12}$/.test(form.codigoAutorizacion)) {
+      setError('El código POS debe tener entre 6 y 12 dígitos.');
       return;
     }
     setCargando(true);
@@ -381,6 +409,8 @@ function CobrarSedeModal({
         clienteTelefono: form.clienteTelefono.trim(),
         fecha,
         horaInicio: form.horaInicio,
+        metodoPago: form.metodoPago,
+        ...(form.metodoPago === GatewayPago.TARJETA ? { codigoAutorizacion: form.codigoAutorizacion } : {}),
       });
       onCobrado(detalle);
     } catch (err) {
@@ -436,11 +466,42 @@ function CobrarSedeModal({
           Telefono
           <input
             type="tel"
-            value={form.clienteTelefono}
+            inputMode="numeric"
+            placeholder="XXXX-XXXX"
+            value={form.clienteTelefono.length > 4 ? `${form.clienteTelefono.slice(0, 4)}-${form.clienteTelefono.slice(4)}` : form.clienteTelefono}
             onChange={(e) => setForm({ ...form, clienteTelefono: e.target.value.replace(/\D/g, '').slice(0, 8) })}
             className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
           />
         </label>
+
+        <label className="block text-xs font-medium text-gray-600">
+          Metodo de pago
+          <div className="mt-1 flex gap-1 bg-gray-50 border border-gray-300 rounded-md p-1">
+            {([GatewayPago.EFECTIVO, GatewayPago.TARJETA] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setForm({ ...form, metodoPago: m })}
+                className={`flex-1 min-h-9 text-xs font-semibold rounded ${form.metodoPago === m ? 'bg-navy text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                {m === GatewayPago.EFECTIVO ? 'Efectivo' : 'Tarjeta'}
+              </button>
+            ))}
+          </div>
+        </label>
+
+        {form.metodoPago === GatewayPago.TARJETA && (
+          <label className="block text-xs font-medium text-gray-600">
+            Código POS (autorización)
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.codigoAutorizacion}
+              onChange={(e) => setForm({ ...form, codigoAutorizacion: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+            />
+          </label>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -472,10 +533,10 @@ function ModificarReservaModal({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const slots = useMemo(() => generarSlots((canchas ?? []).find((c) => c.id === form.canchaId)), [canchas, form.canchaId]);
+  const slots = useMemo(() => generarSlots((canchas ?? []).find((c) => c.id === form.canchaId), form.fecha), [canchas, form.canchaId, form.fecha]);
 
   function cambiarCancha(id: string) {
-    const nuevosSlots = generarSlots((canchas ?? []).find((c) => c.id === id));
+    const nuevosSlots = generarSlots((canchas ?? []).find((c) => c.id === id), form.fecha);
     setForm((f) => ({ ...f, canchaId: id, horaInicio: nuevosSlots.includes(f.horaInicio) ? f.horaInicio : (nuevosSlots[0] ?? f.horaInicio) }));
   }
 
@@ -516,6 +577,7 @@ function ModificarReservaModal({
           <input
             type="date"
             value={form.fecha}
+            min={hoyISO()}
             onChange={(e) => setForm({ ...form, fecha: e.target.value })}
             className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
           />

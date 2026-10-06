@@ -9,6 +9,8 @@
 export default function ReciboImprimible({
   titulo,
   subtitulo,
+  cliente,
+  metodoPago,
   lineas,
   totalLabel = 'Total',
   totalQ,
@@ -16,6 +18,8 @@ export default function ReciboImprimible({
 }: {
   titulo: string;
   subtitulo?: string;
+  cliente?: { nombre?: string; telefono?: string };
+  metodoPago?: string;
   lineas: { label: string; detalle?: string; valor: string }[];
   totalLabel?: string;
   totalQ: number;
@@ -24,10 +28,14 @@ export default function ReciboImprimible({
   return (
     <div className="hidden print:block fixed inset-0 bg-white text-black p-8 text-sm z-[100]">
       <div className="text-center mb-4">
+        {/* eslint-disable-next-line @next/next/no-img-element -- recibo solo visible al imprimir, next/image no aplica */}
+        <img src="/profutbollogo.png" alt="Pro Fútbol Antigua" className="h-10 mx-auto mb-1 grayscale" />
         <p className="font-black text-lg">Pro Fútbol Antigua</p>
         <p className="text-xs">C. de Chajón 4, Antigua Guatemala</p>
         <p className="font-bold mt-2">{titulo}</p>
         {subtitulo && <p className="text-xs">{subtitulo}</p>}
+        {cliente?.nombre && <p className="text-xs">Cliente: {cliente.nombre}{cliente.telefono ? ` · ${cliente.telefono}` : ''}</p>}
+        {metodoPago && <p className="text-xs">Pago: {metodoPago}</p>}
         <p className="text-xs">{new Date().toLocaleString('es-GT')}</p>
       </div>
       <table className="w-full border-t border-b border-black py-2">

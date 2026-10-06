@@ -164,7 +164,15 @@ export class PagosService {
     const pago = await this.prisma.pago.findUnique({
       where: { id },
       include: {
-        reserva: { select: { estado: true, fecha: true, horaInicioMin: true, cancha: { select: { nombre: true } } } },
+        reserva: {
+          select: {
+            estado: true,
+            fecha: true,
+            horaInicioMin: true,
+            cancha: { select: { nombre: true } },
+            cliente: { select: { nombre: true, telefono: true } },
+          },
+        },
       },
     });
     if (!pago) throw new NotFoundException('Pago no encontrado.');
@@ -232,6 +240,10 @@ export class PagosService {
       horaInicio: pago.reserva?.horaInicioMin != null ? minutosAHora(pago.reserva.horaInicioMin) : null,
       montoQ: Number(pago.montoQ),
       confirmadoEn: pago.confirmadoEn,
+      clienteNombre: pago.reserva?.cliente?.nombre ?? null,
+      clienteTelefono: pago.reserva?.cliente?.telefono ?? null,
+      gateway: pago.gateway,
+      codigoAutorizacion: pago.codigoAutorizacion,
     };
   }
 
@@ -285,12 +297,16 @@ export class PagosService {
     clienteNombre: string;
     fecha: string;
     horaInicio: string;
+    metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
+    codigoAutorizacion?: string;
   }) {
     const reserva = await this.reservasService.crearReserva({ ...dto, formaPago: FormaPago.EN_SEDE });
     return this.cobrarEfectivo({
       tipoReferencia: TipoPagoReferencia.RESERVA,
       referenciaId: reserva.id,
       montoQ: Number(reserva.precioTotalQ),
+      gateway: dto.metodoPago,
+      codigoAutorizacion: dto.codigoAutorizacion,
     });
   }
 
@@ -300,17 +316,25 @@ export class PagosService {
    * ni webhook de por medio) y, si es una reserva, la confirma de inmediato
    * (cancela el job de liberacion por timeout via ReservasService.confirmar).
    */
-  async cobrarEfectivo(input: { tipoReferencia: TipoPagoReferencia; referenciaId: string; montoQ: number }) {
+  async cobrarEfectivo(input: {
+    tipoReferencia: TipoPagoReferencia;
+    referenciaId: string;
+    montoQ: number;
+    gateway?: GatewayPago;
+    codigoAutorizacion?: string;
+  }) {
+    const gateway = input.gateway ?? GatewayPago.EFECTIVO;
     const pago = await this.prisma.pago.create({
       data: {
         tipoReferencia: input.tipoReferencia,
         referenciaId: input.referenciaId,
         reservaId: input.tipoReferencia === TipoPagoReferencia.RESERVA ? input.referenciaId : null,
-        gateway: GatewayPago.EFECTIVO,
+        gateway,
         montoQ: input.montoQ,
         estado: EstadoPago.COMPLETADO,
         confirmadoEn: new Date(),
-        referenciaExterna: `efectivo-${Date.now()}`,
+        referenciaExterna: `${gateway.toLowerCase()}-${Date.now()}`,
+        codigoAutorizacion: input.codigoAutorizacion,
       },
     });
 

@@ -34,6 +34,10 @@ export default function ProductosPage() {
     cargarProductos();
   }, []);
 
+  useEffect(() => {
+    if (recibo) window.print();
+  }, [recibo]);
+
   const porCategoria = useMemo(() => {
     const mapa = new Map<ProductoCategoria, ProductoDTO[]>();
     for (const p of productos ?? []) {

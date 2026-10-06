@@ -17,6 +17,14 @@ export interface ReporteMorosidadParaExportar {
   detalle: { etiqueta: string; descripcion: string; montoQ: number; diasVencido: number }[];
 }
 
+export interface ReporteGastosParaExportar {
+  desde: string;
+  hasta: string;
+  totalQ: number;
+  porCategoria: { categoria: string; totalQ: number; cantidad: number }[];
+  gastos: { fecha: string; categoria: string; descripcion: string; montoQ: number }[];
+}
+
 /**
  * Genera archivos .xlsx reales (no HTML disfrazado de Excel) usando exceljs,
  * para que el personal administrativo pueda abrirlos directo en Excel/Google
@@ -76,6 +84,45 @@ export class ExcelExportService {
     ];
     hoja.addRows(reporte.detalle);
     hoja.getRow(1).font = { bold: true };
+
+    const arrayBuffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  async generarReporteGastos(reporte: ReporteGastosParaExportar): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Pro Futbol Antigua';
+    workbook.created = new Date();
+
+    const resumen = workbook.addWorksheet('Resumen');
+    resumen.columns = [
+      { header: 'Concepto', key: 'concepto', width: 30 },
+      { header: 'Valor', key: 'valor', width: 20 },
+    ];
+    resumen.addRows([
+      { concepto: 'Periodo', valor: `${reporte.desde} a ${reporte.hasta}` },
+      { concepto: 'Gasto total (Q)', valor: reporte.totalQ },
+    ]);
+    resumen.getRow(1).font = { bold: true };
+
+    const porCategoria = workbook.addWorksheet('Por categoria');
+    porCategoria.columns = [
+      { header: 'Categoria', key: 'categoria', width: 24 },
+      { header: 'Gasto (Q)', key: 'totalQ', width: 15 },
+      { header: 'Cantidad', key: 'cantidad', width: 12 },
+    ];
+    porCategoria.addRows(reporte.porCategoria);
+    porCategoria.getRow(1).font = { bold: true };
+
+    const detalle = workbook.addWorksheet('Detalle');
+    detalle.columns = [
+      { header: 'Fecha', key: 'fecha', width: 15 },
+      { header: 'Categoria', key: 'categoria', width: 20 },
+      { header: 'Descripcion', key: 'descripcion', width: 40 },
+      { header: 'Monto (Q)', key: 'montoQ', width: 15 },
+    ];
+    detalle.addRows(reporte.gastos);
+    detalle.getRow(1).font = { bold: true };
 
     const arrayBuffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(arrayBuffer);
