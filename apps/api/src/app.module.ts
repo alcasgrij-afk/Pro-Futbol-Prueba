@@ -17,6 +17,7 @@ import { ReportesModule } from './modules/reportes/reportes.module';
 import { ProductosModule } from './modules/productos/productos.module';
 import { VentasModule } from './modules/ventas/ventas.module';
 import { GastosModule } from './modules/gastos/gastos.module';
+import { SuperadminModule } from './modules/superadmin/superadmin.module';
 import { AppController } from './app.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -43,6 +44,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     ProductosModule,
     VentasModule,
     GastosModule,
+    SuperadminModule,
   ],
   controllers: [AppController],
   providers: [

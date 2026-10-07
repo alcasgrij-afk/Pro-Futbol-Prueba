@@ -202,6 +202,8 @@ En **Environment** del servicio API, añade estos valores:
 | `BCRYPT_SALT_ROUNDS` | `12` |
 | `TZ` | `America/Guatemala` |
 | `WEB_URL` | URL de Vercel; se completa en el paso 4 |
+| `SUPERADMIN_PASSWORD` | Contraseña compartida del panel `/superadmin` (solo dev/infra) |
+| `SUPERADMIN_JWT_SECRET` | Secreto distinto de `JWT_ACCESS_SECRET`, exclusivo del panel `/superadmin` |
 
 Añade además las variables de BAC/NeoNet y Sentry únicamente si esas integraciones se usarán en producción. Nunca dejes habilitada una simulación de pago para un flujo de cobros real sin revisarla primero.
 
