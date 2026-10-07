@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import SiteHeader from '../../components/public/SiteHeader';
 import SiteFooter from '../../components/public/SiteFooter';
 
@@ -9,10 +10,10 @@ export const metadata: Metadata = {
 };
 
 const HORARIOS = [
-  { categoria: 'U-7', edades: '5 a 7 años', semana: '4:00 PM – 5:00 PM', sabado: '9:00 AM – 10:00 AM' },
-  { categoria: 'U-9', edades: '8 a 9 años', semana: '5:00 PM – 6:00 PM', sabado: '10:00 AM – 11:00 AM' },
-  { categoria: 'U-11', edades: '10 a 11 años', semana: '3:00 PM – 4:00 PM', sabado: '10:00 AM – 11:00 AM' },
-  { categoria: 'U-13 / U-15 / U-17', edades: '12 a 17 años', semana: '5:00 PM – 6:00 PM', sabado: '11:00 AM – 12:00 PM' },
+  { categoria: 'U-7', edades: '5 a 7 años', semana: '4:00 PM a 5:00 PM', sabado: '9:00 AM a 10:00 AM' },
+  { categoria: 'U-9', edades: '8 a 9 años', semana: '5:00 PM a 6:00 PM', sabado: '10:00 AM a 11:00 AM' },
+  { categoria: 'U-11', edades: '10 a 11 años', semana: '3:00 PM a 4:00 PM', sabado: '10:00 AM a 11:00 AM' },
+  { categoria: 'U-13 / U-15 / U-17', edades: '12 a 17 años', semana: '5:00 PM a 6:00 PM', sabado: '11:00 AM a 12:00 PM' },
 ];
 
 export default function AcademiaPage() {
@@ -22,41 +23,27 @@ export default function AcademiaPage() {
 
       <main>
         {/* Hero */}
-        <section className="py-20 px-6 bg-gradient-to-br from-[#0a3d7d] to-[#0f59b3]">
-          <div className="max-w-[1180px] mx-auto text-center">
-            <p className="text-[13px] font-semibold tracking-wider text-[#d8b32d] mb-5">
-              Formación · Disciplina · Pasión por el fútbol
-            </p>
-            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-5 leading-tight">
-              Academia de Fútbol<br/>
-              <em className="not-italic text-[#d8b32d]">Pro Futbol Antigua</em>
-            </h1>
-            <p className="text-lg text-[#dce8ff] leading-relaxed max-w-[560px] mx-auto">
-              Formamos niñas y niños de 5 a 17 años con entrenamiento de calidad en un ambiente seguro y divertido.
-            </p>
-          </div>
-        </section>
-
-        {/* Participantes */}
-        <section className="py-20 px-6">
-          <div className="max-w-[1180px] mx-auto">
-            <div className="text-center max-w-[600px] mx-auto mb-14">
-              <p className="text-[13px] font-bold text-[#1668c9] mb-3 tracking-wide">Participantes</p>
-              <h2 className="text-3xl font-bold text-[#0a3d7d] mb-4">¿Quién puede unirse?</h2>
-              <p className="text-[#5b6b85] leading-relaxed">
-                Niñas y niños de 5 a 17 años, en categorías femeninas y masculinas.
+        <section className="relative overflow-hidden bg-gradient-to-br from-[#0a3d7d] to-[#0f59b3]">
+          <div className="max-w-[1180px] mx-auto px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <p className="text-[13px] font-semibold tracking-wider text-[#d8b32d] mb-5">
+                Formación, disciplina y pasión por el fútbol
+              </p>
+              <h1 className="text-4xl sm:text-5xl font-bold text-white mb-5 leading-tight">
+                Academia de Fútbol<br/>
+                <em className="not-italic text-[#d8b32d]">Pro Futbol Antigua</em>
+              </h1>
+              <p className="text-lg text-[#dce8ff] leading-relaxed max-w-[460px] mb-6">
+                Formamos niñas y niños de 5 a 17 años, en categorías femeninas y masculinas, con entrenamiento de calidad en un ambiente seguro y divertido.
               </p>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-6 max-w-[700px] mx-auto">
-              <div className="bg-white rounded-[22px] p-8 shadow-[0_10px_30px_rgba(15,60,130,.08)] border-t-4 border-[#d8b32d] text-center">
-                <h3 className="text-lg font-bold text-[#0a3d7d] mb-1">Edades</h3>
-                <p className="text-sm text-[#5b6b85]">De 5 a 17 años, organizados por categoría.</p>
-              </div>
-              <div className="bg-white rounded-[22px] p-8 shadow-[0_10px_30px_rgba(15,60,130,.08)] border-t-4 border-[#d8b32d] text-center">
-                <h3 className="text-lg font-bold text-[#0a3d7d] mb-1">Categorías</h3>
-                <p className="text-sm text-[#5b6b85]">Femenina y masculina.</p>
-              </div>
+            <div className="relative h-72 lg:h-96 rounded-[22px] overflow-hidden shadow-[0_18px_40px_rgba(6,32,70,.35)]">
+              {/* field.jpg trae un banner de texto propio pegado en la franja
+                  inferior (igual que hero.jpg, ver nota en landing-page.tsx);
+                  se recorta con object-top para mostrar solo la accion y
+                  dejar ese banner fuera del encuadre. */}
+              <Image src="/field.jpg" alt="Alumno de la Academia Pro Futbol Antigua entrenando" fill sizes="(min-width: 1024px) 560px, 100vw" className="object-cover object-top" priority />
             </div>
           </div>
         </section>
