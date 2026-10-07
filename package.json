@@ -46,7 +46,8 @@
   "overrides": {
     "@nestjs/common": "^11.2.5",
     "@nestjs/core": "^11.2.5",
-    "@nestjs/platform-express": "^11.2.5"
+    "@nestjs/platform-express": "^11.2.5",
+    "uuid": "^11.1.1"
   },
   "dependencies": {
     "bcrypt": "^6.0.0"
