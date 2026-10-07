@@ -8,3 +8,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # @nestjs/platform-express y @nestjs/testing requieren @nestjs/common@^12
+      # como peer; Dependabot los propone sueltos y rompe la resolucion porque
+      # common/core siguen en v11. Bloqueado hasta que se haga la migracion
+      # completa a Nest v12 (ver tarea pendiente).
+      - dependency-name: "@nestjs/platform-express"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@nestjs/testing"
+        update-types: ["version-update:semver-major"]
