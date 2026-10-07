@@ -291,6 +291,40 @@ export class PagosService {
   }
 
   /**
+   * Resolucion manual de un pago PENDIENTE estancado (panel /superadmin).
+   * Mismo efecto que procesarWebhook, pero disparado a mano en vez de por
+   * la pasarela; solo actua sobre pagos aun PENDIENTE para no reescribir
+   * uno ya resuelto.
+   */
+  async marcarManualmente(id: string, nuevoEstado: EstadoPago.COMPLETADO | EstadoPago.CANCELADO) {
+    const pago = await this.prisma.pago.findUnique({ where: { id } });
+    if (!pago) throw new NotFoundException('Pago no encontrado.');
+    if (pago.estado !== EstadoPago.PENDIENTE) {
+      throw new BadRequestException(`El pago ya esta en estado ${pago.estado}, no se puede marcar manualmente.`);
+    }
+
+    await this.prisma.pago.update({
+      where: { id: pago.id },
+      data:
+        nuevoEstado === EstadoPago.COMPLETADO
+          ? { estado: EstadoPago.COMPLETADO, confirmadoEn: new Date() }
+          : { estado: EstadoPago.CANCELADO },
+    });
+
+    if (pago.tipoReferencia === TipoPagoReferencia.RESERVA) {
+      if (nuevoEstado === EstadoPago.COMPLETADO) {
+        await this.reservasService.confirmar(pago.referenciaId);
+      } else {
+        await this.reservasService.cancelar(pago.referenciaId);
+      }
+    }
+    // EQUIPO/MENSUALIDAD: sin efecto adicional — estado se lee en vivo de la tabla de pagos.
+
+    this.logger.warn(`Pago ${pago.id} marcado manualmente como ${nuevoEstado} desde /superadmin.`);
+    return this.obtenerPago(pago.id);
+  }
+
+  /**
    * Modulo de Caja: crea una reserva walk-in (EN_SEDE) y la cobra en
    * efectivo en el mismo paso, quedando CONFIRMADA de inmediato (sin la
    * ventana de 30 min de espera que aplica al flujo normal del bot).

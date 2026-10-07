@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import * as Sentry from '@sentry/nestjs';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { SuperadminLogBufferService } from './modules/superadmin/superadmin-log-buffer.service';
 
 async function bootstrap() {
   // --- Monitoreo de errores (Fase 5) ---
@@ -24,7 +25,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     logger: ['error', 'warn', 'log', process.env.NODE_ENV !== 'production' ? 'debug' : 'log'],
+    bufferLogs: true,
   });
+
+  // Convierte TODO logger de la app (new Logger(contexto).warn/error en
+  // cualquier archivo) en la fuente del panel de logs de /superadmin.
+  app.useLogger(app.get(SuperadminLogBufferService));
 
   // --- Seguridad basica de cabeceras HTTP ---
   app.use(helmet());
