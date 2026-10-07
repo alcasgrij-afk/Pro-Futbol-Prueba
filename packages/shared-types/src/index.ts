@@ -24,6 +24,14 @@ export enum FormaPago {
   EN_SEDE = 'EN_SEDE',
 }
 
+// NORMAL = reserva pagada de un cliente. ESPECIAL/ACADEMIA = bloqueo de
+// horario pre-arreglado (sin cobro), creado por staff en /admin/caja.
+export enum TipoReserva {
+  NORMAL = 'NORMAL',
+  ESPECIAL = 'ESPECIAL',
+  ACADEMIA = 'ACADEMIA',
+}
+
 export enum RolUsuario {
   ADMIN = 'ADMIN',
   RECEPCION = 'RECEPCION',
@@ -155,6 +163,14 @@ export interface ClienteDTO {
   email?: string | null;
 }
 
+/** Caja: resultado de buscar un cliente por telefono + su estado VIP. */
+export interface EstadoClienteValoradoDTO {
+  cliente: ClienteDTO;
+  esValorado: boolean;
+  totalReservas: number;
+  siguienteEsGratis: boolean;
+}
+
 export interface ReservaDTO {
   id: string;
   canchaId: string;
@@ -165,6 +181,7 @@ export interface ReservaDTO {
   horaInicio: string;
   horaFin: string;
   estado: EstadoReserva;
+  tipo: TipoReserva;
   formaPago: FormaPago;
   precioTotalQ: number;
   creadoEn: string;
@@ -299,7 +316,8 @@ export interface PosicionDTO {
 
 export interface AlumnoDTO {
   id: string;
-  nombre: string;
+  nombres: string;
+  apellidos: string;
   fechaNacimiento: string;
   categoria: string;
   encargadoNombre: string;
@@ -311,7 +329,7 @@ export interface AlumnoDTO {
 export interface AcademiaMensualidadDTO {
   id: string;
   alumnoId: string;
-  alumno?: { id: string; nombre: string } | null;
+  alumno?: { id: string; nombres: string; apellidos: string } | null;
   mes: number;
   anio: number;
   montoQ: number;
@@ -357,6 +375,7 @@ export interface VentaDTO {
   notas?: string | null;
   items: VentaItemDTO[];
   creadoEn: string;
+  numeroRecibo?: string | null;
 }
 
 export interface CrearVentaInput {
@@ -398,10 +417,37 @@ export interface CobrarSedeInput {
   horaInicio: string;
   metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
   codigoAutorizacion?: string;
+  /** Caja aplica el beneficio de Cliente Valorado: cobra Q0 (6ta reserva gratis). */
+  gratis?: boolean;
 }
 
 export interface ReprogramarReservaInput {
   canchaId?: string;
   fecha?: string;
   horaInicio?: string;
+}
+
+/** Bloqueo puntual (un solo dia) de cancha: Reserva Especial o Academia. */
+export interface CrearReservaBloqueoInput {
+  canchaId: string;
+  clienteTelefono: string;
+  clienteNombre: string;
+  fecha: string;
+  horaInicio: string;
+  horaFin: string;
+  tipo: TipoReserva.ESPECIAL | TipoReserva.ACADEMIA;
+  formaPago: FormaPago;
+}
+
+/** Regla semanal recurrente de bloqueo (Especial o Academia). */
+export interface CrearReservaRecurrenteInput {
+  canchaId: string;
+  clienteTelefono: string;
+  clienteNombre: string;
+  tipo: TipoReserva.ESPECIAL | TipoReserva.ACADEMIA;
+  diaSemana: number; // 0=domingo .. 6=sabado
+  horaInicio: string;
+  horaFin: string;
+  fechaInicio: string;
+  fechaFin?: string;
 }

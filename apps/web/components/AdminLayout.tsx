@@ -53,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:text-navy focus:px-3 focus:py-2 rounded">Saltar al contenido</a>
       <div className="min-h-screen md:flex bg-[#eef2f8]">
         {/* Sidebar de escritorio */}
-        <aside className="hidden md:flex md:flex-col md:w-64 md:shrink-0 bg-navy text-white relative overflow-hidden">
+        <aside className="hidden md:flex md:flex-col md:w-64 md:shrink-0 bg-navy text-white relative overflow-hidden print:hidden">
           <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-white/5" aria-hidden="true" />
           <div className="absolute bottom-24 left-8 w-24 h-24 rounded-full bg-white/5" aria-hidden="true" />
           <div className="relative z-10 flex flex-col h-full">
@@ -85,7 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </aside>
 
         {/* Nav superior en movil (la sidebar solo aparece desde md) */}
-        <header className="md:hidden bg-navy text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <header className="md:hidden bg-navy text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <Link href="/admin" className="flex items-center gap-2 font-bold">
             <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={453} height={162} className="h-7 w-auto" />
           </Link>
@@ -103,7 +103,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex items-center justify-end gap-4 px-6 py-3 text-sm border-b border-gray-200 bg-white">
+          <div className="flex items-center justify-end gap-4 px-6 py-3 text-sm border-b border-gray-200 bg-white print:hidden">
             <Link href="/admin/perfil" className="text-gray-600 hover:text-navy font-medium">
               Mi perfil
             </Link>

@@ -2,10 +2,15 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CrearAlumnoDto {
-  @ApiProperty({ example: 'Mateo Garcia' })
+  @ApiProperty({ example: 'Mateo Andres' })
   @IsString()
   @MinLength(2)
-  nombre: string;
+  nombres: string;
+
+  @ApiProperty({ example: 'Garcia Lopez' })
+  @IsString()
+  @MinLength(2)
+  apellidos: string;
 
   @ApiProperty({ example: '2016-04-12' })
   @IsDateString()

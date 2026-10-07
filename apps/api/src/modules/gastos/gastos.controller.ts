@@ -64,7 +64,13 @@ export class GastosController {
         montoQ: Number(g.montoQ),
       })),
     };
-    const nombreArchivo = `gastos_${desde}_a_${hasta}`;
+    // Nombre pedido por el usuario: "Reporte de Gastos <fecha de HOY>", no el
+    // rango desde/hasta del contenido. Fecha LOCAL (mismo criterio que
+    // ReportesService.finDelDia) para que coincida con la fecha que ve el
+    // usuario en Guatemala, no la fecha UTC.
+    const hoy = new Date();
+    const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    const nombreArchivo = `Reporte de Gastos ${fechaHoy}`;
 
     if (formato === 'pdf') {
       const buffer = await this.pdfExport.generarReporteGastos(reporte);

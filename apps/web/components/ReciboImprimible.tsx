@@ -11,6 +11,7 @@ export default function ReciboImprimible({
   subtitulo,
   cliente,
   metodoPago,
+  numeroRecibo,
   lineas,
   totalLabel = 'Total',
   totalQ,
@@ -20,6 +21,7 @@ export default function ReciboImprimible({
   subtitulo?: string;
   cliente?: { nombre?: string; telefono?: string };
   metodoPago?: string;
+  numeroRecibo?: string | null;
   lineas: { label: string; detalle?: string; valor: string }[];
   totalLabel?: string;
   totalQ: number;
@@ -33,6 +35,7 @@ export default function ReciboImprimible({
         <p className="font-black text-lg">Pro Fútbol Antigua</p>
         <p className="text-xs">C. de Chajón 4, Antigua Guatemala</p>
         <p className="font-bold mt-2">{titulo}</p>
+        {numeroRecibo && <p className="text-xs">No. {numeroRecibo}</p>}
         {subtitulo && <p className="text-xs">{subtitulo}</p>}
         {cliente?.nombre && <p className="text-xs">Cliente: {cliente.nombre}{cliente.telefono ? ` · ${cliente.telefono}` : ''}</p>}
         {metodoPago && <p className="text-xs">Pago: {metodoPago}</p>}

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO, ProductoDTO, VentaDTO, CrearVentaInput, GastoDTO, CrearGastoInput, ResumenGastosDTO, CobrarSedeInput, ReprogramarReservaInput } from '@profutbol/shared-types';
+import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO, ProductoDTO, VentaDTO, CrearVentaInput, GastoDTO, CrearGastoInput, ResumenGastosDTO, CobrarSedeInput, ReprogramarReservaInput, CrearReservaBloqueoInput, CrearReservaRecurrenteInput, EstadoClienteValoradoDTO, GatewayPago } from '@profutbol/shared-types';
 
 const TOKEN_KEY = 'profutbol_access_token';
 const REFRESH_KEY = 'profutbol_refresh_token';
@@ -84,6 +84,8 @@ export interface PagoDetalle {
   clienteTelefono?: string | null;
   gateway?: string;
   codigoAutorizacion?: string | null;
+  numeroRecibo?: string | null;
+  descripcion?: string | null;
 }
 
 /** Forma de una fila de PagosService.listar (bitacora de /admin/pagos). */
@@ -155,6 +157,17 @@ export const api = {
 
   reprogramarReserva: (id: string, datos: ReprogramarReservaInput) =>
     request<ReservaDTO>(`/reservas/${id}`, { method: 'PATCH', body: JSON.stringify(datos) }),
+
+  crearReservaBloqueo: (datos: CrearReservaBloqueoInput) =>
+    request<ReservaDTO>('/reservas/bloqueo', { method: 'POST', body: JSON.stringify(datos) }),
+
+  crearReservaRecurrente: (datos: CrearReservaRecurrenteInput) =>
+    request('/reservas/recurrentes', { method: 'POST', body: JSON.stringify(datos) }),
+
+  // Caja: estado de Cliente Valorado (VIP) por telefono, para el badge de
+  // "siguiente reserva gratis" al cobrar.
+  buscarClientePorTelefono: (telefono: string) =>
+    request<EstadoClienteValoradoDTO>(`/clientes/buscar?telefono=${encodeURIComponent(telefono)}`),
 
   // ---- Caja: cobro en sede, productos, ventas y gastos (Fase 6) ----
 
@@ -241,7 +254,7 @@ export const api = {
     return request<AlumnoDTO[]>(`/academia/alumnos?${params.toString()}`);
   },
 
-  crearAlumno: (datos: { nombre: string; fechaNacimiento: string; categoria?: string; encargadoNombre: string; encargadoTelefono: string }) => {
+  crearAlumno: (datos: { nombres: string; apellidos: string; fechaNacimiento: string; categoria?: string; encargadoNombre: string; encargadoTelefono: string }) => {
     const body = Object.fromEntries(Object.entries(datos).filter(([, v]) => v !== '' && v != null));
     return request<AlumnoDTO>('/academia/alumnos', { method: 'POST', body: JSON.stringify(body) });
   },
@@ -250,7 +263,7 @@ export const api = {
 
   actualizarAlumno: (
     id: string,
-    datos: { nombre?: string; fechaNacimiento?: string; categoria?: string; encargadoNombre?: string; encargadoTelefono?: string },
+    datos: { nombres?: string; apellidos?: string; fechaNacimiento?: string; categoria?: string; encargadoNombre?: string; encargadoTelefono?: string },
   ) => {
     const body = Object.fromEntries(Object.entries(datos).filter(([, v]) => v !== '' && v != null));
     return request<AlumnoDTO>(`/academia/alumnos/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -258,6 +271,11 @@ export const api = {
 
   listarMensualidadesDelMes: (mes: number, anio: number) =>
     request<AcademiaMensualidadDTO[]>(`/academia/mensualidades?mes=${mes}&anio=${anio}`),
+
+  cobrarMensualidadEnSede: (
+    id: string,
+    datos: { metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA; codigoAutorizacion?: string },
+  ) => request<PagoDetalle>(`/academia/mensualidades/${id}/cobrar-sede`, { method: 'POST', body: JSON.stringify(datos) }),
 
   marcarAsistencia: (datos: { alumnoId: string; fecha: string; presente: boolean }) =>
     request<AsistenciaDTO>('/asistencia', { method: 'POST', body: JSON.stringify(datos) }),

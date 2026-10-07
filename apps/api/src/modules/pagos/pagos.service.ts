@@ -189,6 +189,7 @@ export class PagosService {
         referenciaId: pago.referenciaId,
         montoQ: Number(pago.montoQ),
         confirmadoEn: pago.confirmadoEn,
+        numeroRecibo: pago.numeroRecibo,
         descripcion: equipo ? `${equipo.torneo.nombre} · ${equipo.nombre}` : 'Cuota de inscripcion',
       };
     }
@@ -196,7 +197,7 @@ export class PagosService {
     if (pago.tipoReferencia === TipoPagoReferencia.MENSUALIDAD) {
       const mensualidad = await this.prisma.academiaMensualidad.findUnique({
         where: { id: pago.referenciaId },
-        include: { alumno: { select: { nombre: true } } },
+        include: { alumno: { select: { nombres: true, apellidos: true } } },
       });
       return {
         paymentId: pago.id,
@@ -205,8 +206,9 @@ export class PagosService {
         referenciaId: pago.referenciaId,
         montoQ: Number(pago.montoQ),
         confirmadoEn: pago.confirmadoEn,
+        numeroRecibo: pago.numeroRecibo,
         descripcion: mensualidad
-          ? `Mensualidad academia ${mensualidad.mes}/${mensualidad.anio} - ${mensualidad.alumno.nombre}`
+          ? `Mensualidad academia ${mensualidad.mes}/${mensualidad.anio} - ${mensualidad.alumno.nombres} ${mensualidad.alumno.apellidos}`
           : 'Mensualidad de academia',
       };
     }
@@ -223,6 +225,7 @@ export class PagosService {
         referenciaId: pago.referenciaId,
         montoQ: Number(pago.montoQ),
         confirmadoEn: pago.confirmadoEn,
+        numeroRecibo: pago.numeroRecibo,
         descripcion: venta
           ? venta.items.map((i) => `${i.cantidad}x ${i.nombreSnapshot}`).join(', ')
           : 'Venta de productos',
@@ -244,6 +247,7 @@ export class PagosService {
       clienteTelefono: pago.reserva?.cliente?.telefono ?? null,
       gateway: pago.gateway,
       codigoAutorizacion: pago.codigoAutorizacion,
+      numeroRecibo: pago.numeroRecibo,
     };
   }
 
@@ -299,12 +303,13 @@ export class PagosService {
     horaInicio: string;
     metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
     codigoAutorizacion?: string;
+    gratis?: boolean;
   }) {
     const reserva = await this.reservasService.crearReserva({ ...dto, formaPago: FormaPago.EN_SEDE });
     return this.cobrarEfectivo({
       tipoReferencia: TipoPagoReferencia.RESERVA,
       referenciaId: reserva.id,
-      montoQ: Number(reserva.precioTotalQ),
+      montoQ: dto.gratis ? 0 : Number(reserva.precioTotalQ),
       gateway: dto.metodoPago,
       codigoAutorizacion: dto.codigoAutorizacion,
     });
@@ -324,6 +329,7 @@ export class PagosService {
     codigoAutorizacion?: string;
   }) {
     const gateway = input.gateway ?? GatewayPago.EFECTIVO;
+    const numeroRecibo = await this.generarNumeroRecibo();
     const pago = await this.prisma.pago.create({
       data: {
         tipoReferencia: input.tipoReferencia,
@@ -335,6 +341,7 @@ export class PagosService {
         confirmadoEn: new Date(),
         referenciaExterna: `${gateway.toLowerCase()}-${Date.now()}`,
         codigoAutorizacion: input.codigoAutorizacion,
+        numeroRecibo,
       },
     });
 
@@ -382,6 +389,21 @@ export class PagosService {
       creadoEn: p.creadoEn,
       confirmadoEn: p.confirmadoEn,
     }));
+  }
+
+  /**
+   * Secuencia atomica por anio para el numero de recibo impreso. El upsert
+   * con increment es atomico a nivel de fila en Postgres: dos cobros
+   * simultaneos no pueden terminar con el mismo numero.
+   */
+  private async generarNumeroRecibo(): Promise<string> {
+    const anio = new Date().getFullYear();
+    const contador = await this.prisma.reciboContador.upsert({
+      where: { anio },
+      create: { anio, ultimoNumero: 1 },
+      update: { ultimoNumero: { increment: 1 } },
+    });
+    return `REC-${anio}-${String(contador.ultimoNumero).padStart(6, '0')}`;
   }
 
   private finDelDia(fecha: string): Date {

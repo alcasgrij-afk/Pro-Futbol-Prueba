@@ -66,14 +66,17 @@ export class ReportesService {
 
   async ocupacion(desde: string, hasta: string) {
     const canchas = await this.prisma.cancha.findMany({ where: { activa: true } });
-    const dias = this.contarDias(desde, hasta);
+    const { semana, finde } = this.contarDiasPorTipo(desde, hasta);
 
     const porCancha = await Promise.all(
       canchas.map(async (cancha) => {
-        const bloquesPorDia = Math.floor(
-          (cancha.horaCierreMin - cancha.horaAperturaMin) / cancha.duracionBloqueMin,
+        const bloquesPorDiaSemana = Math.floor(
+          (cancha.horaCierreMinSemana - cancha.horaAperturaMinSemana) / cancha.duracionBloqueMin,
         );
-        const bloquesTotales = bloquesPorDia * dias;
+        const bloquesPorDiaFinde = Math.floor(
+          (cancha.horaCierreMinFinde - cancha.horaAperturaMinFinde) / cancha.duracionBloqueMin,
+        );
+        const bloquesTotales = bloquesPorDiaSemana * semana + bloquesPorDiaFinde * finde;
 
         const bloquesOcupados = await this.prisma.reserva.count({
           where: {
@@ -146,7 +149,7 @@ export class ReportesService {
           include: { alumno: true },
         });
         return mensualidad
-          ? `Mensualidad ${mensualidad.mes}/${mensualidad.anio} · ${mensualidad.alumno?.nombre} (${mensualidad.alumno?.encargadoTelefono})`
+          ? `Mensualidad ${mensualidad.mes}/${mensualidad.anio} · ${mensualidad.alumno?.nombres} ${mensualidad.alumno?.apellidos} (${mensualidad.alumno?.encargadoTelefono})`
           : 'Mensualidad no encontrada';
       }
       default:
@@ -163,9 +166,20 @@ export class ReportesService {
     return new Date(anio, mes - 1, dia, 23, 59, 59, 999);
   }
 
-  private contarDias(desde: string, hasta: string): number {
-    const msPorDia = 24 * 60 * 60 * 1000;
-    const dias = Math.round((new Date(hasta).getTime() - new Date(desde).getTime()) / msPorDia) + 1;
-    return Math.max(1, dias);
+  private contarDiasPorTipo(desde: string, hasta: string): { semana: number; finde: number } {
+    const [anioD, mesD, diaD] = desde.split('-').map(Number);
+    const [anioH, mesH, diaH] = hasta.split('-').map(Number);
+    const inicio = new Date(anioD, mesD - 1, diaD);
+    const fin = new Date(anioH, mesH - 1, diaH);
+
+    let semana = 0;
+    let finde = 0;
+    for (let d = inicio; d <= fin; d.setDate(d.getDate() + 1)) {
+      const diaSemana = d.getDay();
+      if (diaSemana === 0 || diaSemana === 6) finde++;
+      else semana++;
+    }
+    if (semana + finde === 0) semana = 1; // rango invalido: no dividir entre 0
+    return { semana, finde };
   }
 }

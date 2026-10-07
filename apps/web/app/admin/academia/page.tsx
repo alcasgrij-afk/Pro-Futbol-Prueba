@@ -11,7 +11,7 @@ import { hoyISOAnios } from '../../../lib/fechas';
 import ConfirmarModal from '../../../components/ConfirmarModal';
 import Skeleton from '../../../components/Skeleton';
 
-const FORM_VACIO = { nombre: '', fechaNacimiento: '', categoria: '', encargadoNombre: '', encargadoTelefono: '' };
+const FORM_VACIO = { nombres: '', apellidos: '', fechaNacimiento: '', categoria: '', encargadoNombre: '', encargadoTelefono: '' };
 
 // ponytail: foto guardada solo en localStorage del navegador (prueba de
 // concepto). Pendiente: persistirla en el backend (columna en Alumno +
@@ -106,7 +106,8 @@ function AcademiaContenido() {
   function iniciarEdicion(a: AlumnoDTO) {
     setEditando(a);
     setForm({
-      nombre: a.nombre,
+      nombres: a.nombres,
+      apellidos: a.apellidos,
       fechaNacimiento: a.fechaNacimiento.slice(0, 10),
       categoria: a.categoria,
       encargadoNombre: a.encargadoNombre,
@@ -200,7 +201,7 @@ function AcademiaContenido() {
                 <div className="w-36 h-36 rounded-xl overflow-hidden border-4 border-white/90 bg-gray-200 flex items-center justify-center">
                   {foto ? (
                     // eslint-disable-next-line @next/next/no-img-element -- data URL de localStorage, no un asset estatico
-                    <img src={foto} alt={`Foto de ${form.nombre || 'alumno'}`} className="w-full h-full object-cover" />
+                    <img src={foto} alt={`Foto de ${form.nombres || 'alumno'}`} className="w-full h-full object-cover" />
                   ) : (
                     <UserCircle size={96} weight="fill" className="text-gray-400" aria-hidden />
                   )}
@@ -219,7 +220,7 @@ function AcademiaContenido() {
                 <p className="text-xs tracking-widest text-gray-500 font-semibold">MEMBRESÍA</p>
                 <h2 className="text-sm font-bold text-navy tracking-wide">ACADEMIA DE FÚTBOL</h2>
                 <h3 className="text-2xl md:text-3xl font-black text-navy uppercase leading-tight max-w-xs mt-2 mb-3 border-b border-gray-200 pb-3">
-                  {form.nombre || 'Nombre del alumno'}
+                  {`${form.nombres} ${form.apellidos}`.trim() || 'Nombre del alumno'}
                 </h3>
 
                 <div className="space-y-3 mb-4">
@@ -228,8 +229,17 @@ function AcademiaContenido() {
                       <User size={16} weight="bold" className="text-navy" aria-hidden />
                     </span>
                     <label className="flex-1">
-                      <span className="block text-[11px] font-bold text-gray-500 tracking-wide">NOMBRE DEL ALUMNO *</span>
-                      <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="w-full border-0 border-b border-gray-300 focus:border-navy focus:ring-0 px-0 py-1 text-sm font-semibold text-navy bg-transparent" />
+                      <span className="block text-[11px] font-bold text-gray-500 tracking-wide">NOMBRES (2) *</span>
+                      <input value={form.nombres} onChange={(e) => setForm({ ...form, nombres: e.target.value })} className="w-full border-0 border-b border-gray-300 focus:border-navy focus:ring-0 px-0 py-1 text-sm font-semibold text-navy bg-transparent" />
+                    </label>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 w-8 h-8 rounded-full bg-navy/10 flex items-center justify-center shrink-0">
+                      <User size={16} weight="bold" className="text-navy" aria-hidden />
+                    </span>
+                    <label className="flex-1">
+                      <span className="block text-[11px] font-bold text-gray-500 tracking-wide">APELLIDOS (2) *</span>
+                      <input value={form.apellidos} onChange={(e) => setForm({ ...form, apellidos: e.target.value })} className="w-full border-0 border-b border-gray-300 focus:border-navy focus:ring-0 px-0 py-1 text-sm font-semibold text-navy bg-transparent" />
                     </label>
                   </div>
                   <div className="flex items-start gap-3">
@@ -298,7 +308,7 @@ function AcademiaContenido() {
           <div className="flex items-center gap-3">
             <button
               onClick={guardar}
-              disabled={guardando || !form.nombre || !form.fechaNacimiento || !form.encargadoNombre || !form.encargadoTelefono}
+              disabled={guardando || !form.nombres || !form.apellidos || !form.fechaNacimiento || !form.encargadoNombre || !form.encargadoTelefono}
               className="px-4 py-2 bg-navy text-white rounded-md text-sm font-semibold disabled:opacity-50 transition-transform active:scale-[0.98]"
             >
               {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Registrar alumno'}
@@ -345,7 +355,7 @@ function AcademiaContenido() {
             <tbody>
               {alumnos.map((a) => (
                 <tr key={a.id} className="border-t border-gray-100">
-                  <td className="px-4 py-2 font-medium">{a.nombre}</td>
+                  <td className="px-4 py-2 font-medium">{a.nombres} {a.apellidos}</td>
                   <td className="px-4 py-2">
                     <span className={`text-xs rounded-full px-2 py-0.5 ${colorCategoria(a.categoria)}`}>{a.categoria}</span>
                   </td>
@@ -367,7 +377,7 @@ function AcademiaContenido() {
       {desactivando && (
         <ConfirmarModal
           titulo="Desactivar alumno"
-          mensaje={`¿Desactivar a ${desactivando.nombre}? Dejará de recibir mensualidades. Esta acción no se puede deshacer.`}
+          mensaje={`¿Desactivar a ${desactivando.nombres} ${desactivando.apellidos}? Dejará de recibir mensualidades. Esta acción no se puede deshacer.`}
           onConfirmar={confirmarDesactivar}
           onCancelar={() => setDesactivando(null)}
           cargando={accionCargando}

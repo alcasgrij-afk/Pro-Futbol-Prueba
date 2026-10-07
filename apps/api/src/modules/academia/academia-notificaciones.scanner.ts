@@ -50,7 +50,7 @@ export class AcademiaNotificacionesScanner {
 
       this.logger.log(
         `[aviso-mensualidad-vencida] Pendiente: ${mensualidad.mes}/${mensualidad.anio} ` +
-          `${mensualidad.alumno.nombre} (Q${mensualidad.montoQ}) -> encargado ${mensualidad.alumno.encargadoTelefono}`,
+          `${mensualidad.alumno.nombres} ${mensualidad.alumno.apellidos} (Q${mensualidad.montoQ}) -> encargado ${mensualidad.alumno.encargadoTelefono}`,
       );
 
       await this.prisma.academiaMensualidad.update({

@@ -7,8 +7,8 @@ describe('MensualidadesService', () => {
   let prisma: any;
   let pagosService: any;
 
-  const alumnoActivo1 = { id: 'alumno-1', nombre: 'Mateo', encargadoTelefono: '50255551234', activo: true };
-  const alumnoActivo2 = { id: 'alumno-2', nombre: 'Sofia', encargadoTelefono: '50255559999', activo: true };
+  const alumnoActivo1 = { id: 'alumno-1', nombres: 'Mateo', apellidos: 'Garcia', encargadoTelefono: '50255551234', activo: true };
+  const alumnoActivo2 = { id: 'alumno-2', nombres: 'Sofia', apellidos: 'Lopez', encargadoTelefono: '50255559999', activo: true };
 
   beforeEach(() => {
     prisma = {

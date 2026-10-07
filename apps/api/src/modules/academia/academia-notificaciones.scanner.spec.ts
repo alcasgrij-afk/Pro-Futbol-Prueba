@@ -11,7 +11,7 @@ describe('AcademiaNotificacionesScanner', () => {
     mes: 7,
     anio: 2026,
     montoQ: 150,
-    alumno: { nombre: 'Mateo', encargadoTelefono: '50255551234' },
+    alumno: { nombres: 'Mateo', apellidos: 'Garcia', encargadoTelefono: '50255551234' },
   };
 
   beforeEach(() => {

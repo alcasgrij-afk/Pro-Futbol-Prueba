@@ -19,8 +19,10 @@ describe('ReservasService', () => {
   const canchaMock = {
     id: 'cancha-1',
     activa: true,
-    horaAperturaMin: 8 * 60,
-    horaCierreMin: 22 * 60,
+    horaAperturaMinSemana: 14 * 60,
+    horaCierreMinSemana: 22 * 60,
+    horaAperturaMinFinde: 8 * 60,
+    horaCierreMinFinde: 22 * 60,
     duracionBloqueMin: 60,
     precioAnticipadoQ: 250,
     precioSedeQ: 300,

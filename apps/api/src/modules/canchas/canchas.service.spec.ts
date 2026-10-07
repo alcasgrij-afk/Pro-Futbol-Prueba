@@ -4,8 +4,9 @@ describe('CanchasService', () => {
   let service: CanchasService;
   let prisma: any;
 
-  const CANCHA_F5 = { id: 'f5', nombre: 'Futbol 5', horaAperturaMin: 14 * 60, horaCierreMin: 16 * 60, duracionBloqueMin: 60 };
-  const CANCHA_F7 = { id: 'f7', nombre: 'Futbol 7', horaAperturaMin: 14 * 60, horaCierreMin: 16 * 60, duracionBloqueMin: 60 };
+  const HORARIO = { horaAperturaMinSemana: 14 * 60, horaCierreMinSemana: 16 * 60, horaAperturaMinFinde: 14 * 60, horaCierreMinFinde: 16 * 60 };
+  const CANCHA_F5 = { id: 'f5', nombre: 'Futbol 5', ...HORARIO, duracionBloqueMin: 60 };
+  const CANCHA_F7 = { id: 'f7', nombre: 'Futbol 7', ...HORARIO, duracionBloqueMin: 60 };
 
   beforeEach(() => {
     prisma = {

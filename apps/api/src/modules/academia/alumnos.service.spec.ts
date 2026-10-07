@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { AlumnosService } from './alumnos.service';
 
 describe('AlumnosService', () => {
@@ -9,6 +10,7 @@ describe('AlumnosService', () => {
       alumno: {
         create: jest.fn().mockResolvedValue({ id: 'alumno-1' }),
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn(),
         update: jest.fn(),
       },
@@ -19,7 +21,8 @@ describe('AlumnosService', () => {
   describe('crear', () => {
     it('usa la categoria explicita si se proporciona', async () => {
       await service.crear({
-        nombre: 'Mateo',
+        nombres: 'Mateo',
+        apellidos: 'Garcia',
         fechaNacimiento: '2016-04-12',
         categoria: 'Sub-12 Avanzado',
         encargadoNombre: 'Ana',
@@ -33,7 +36,8 @@ describe('AlumnosService', () => {
 
     it('sugiere la categoria automaticamente si no se proporciona', async () => {
       await service.crear({
-        nombre: 'Mateo',
+        nombres: 'Mateo',
+        apellidos: 'Garcia',
         fechaNacimiento: '2016-04-12',
         encargadoNombre: 'Ana',
         encargadoTelefono: '50255551234',
@@ -41,6 +45,20 @@ describe('AlumnosService', () => {
 
       const dataCreada = prisma.alumno.create.mock.calls[0][0].data;
       expect(dataCreada.categoria).toMatch(/^Sub-\d+$|Libre/);
+    });
+
+    it('rechaza un nombre completo duplicado (case-insensitive)', async () => {
+      prisma.alumno.findFirst.mockResolvedValue({ id: 'existente' });
+      await expect(
+        service.crear({
+          nombres: 'mateo',
+          apellidos: 'garcia',
+          fechaNacimiento: '2016-04-12',
+          encargadoNombre: 'Ana',
+          encargadoTelefono: '50255551234',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.alumno.create).not.toHaveBeenCalled();
     });
   });
 
@@ -78,10 +96,10 @@ describe('AlumnosService', () => {
   describe('actualizar', () => {
     it('solo envia a prisma los campos incluidos en el dto', async () => {
       prisma.alumno.findUnique.mockResolvedValue({ id: 'alumno-1' });
-      await service.actualizar('alumno-1', { nombre: 'Mateo Garcia' });
+      await service.actualizar('alumno-1', { nombres: 'Mateo', apellidos: 'Garcia' });
       expect(prisma.alumno.update).toHaveBeenCalledWith({
         where: { id: 'alumno-1' },
-        data: { nombre: 'Mateo Garcia' },
+        data: { nombres: 'Mateo', apellidos: 'Garcia' },
       });
     });
 
@@ -94,7 +112,7 @@ describe('AlumnosService', () => {
 
     it('lanza error si el alumno no existe', async () => {
       prisma.alumno.findUnique.mockResolvedValue(null);
-      await expect(service.actualizar('no-existe', { nombre: 'X' })).rejects.toThrow('Alumno no encontrado.');
+      await expect(service.actualizar('no-existe', { nombres: 'X' })).rejects.toThrow('Alumno no encontrado.');
     });
   });
 });

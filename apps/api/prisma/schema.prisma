@@ -37,6 +37,15 @@ enum FormaPago {
   EN_SEDE
 }
 
+// NORMAL = reserva pagada de un cliente. ESPECIAL/ACADEMIA = bloqueo de
+// horario pre-arreglado (sin cobro, sin Pago asociado) para academia o
+// clientes recurrentes; ver ReservasService.crearReserva y ReservaRecurrente.
+enum TipoReserva {
+  NORMAL
+  ESPECIAL
+  ACADEMIA
+}
+
 enum RolUsuario {
   ADMIN
   RECEPCION
@@ -124,6 +133,8 @@ model Cliente {
   creadoEn  DateTime  @default(now())
   reservas  Reserva[]
   ventas    Venta[]
+  reservasRecurrentes ReservaRecurrente[]
+  valorado  ClienteValorado?
 
   @@map("clientes")
 }
@@ -134,12 +145,17 @@ model Cancha {
   tipo             TipoCancha
   precioAnticipadoQ Decimal   @db.Decimal(10, 2)
   precioSedeQ       Decimal   @db.Decimal(10, 2)
-  horaAperturaMin   Int       // minutos desde medianoche, ej. 8:00 = 480
-  horaCierreMin     Int       // ej. 22:00 = 1320
+  // Horario de operacion: distinto entre semana (lun-vie) y finde (sab-dom).
+  // Minutos desde medianoche, ej. 14:00 = 840, 22:00 = 1320, 8:00 = 480.
+  horaAperturaMinSemana Int @default(840)
+  horaCierreMinSemana   Int @default(1320)
+  horaAperturaMinFinde  Int @default(480)
+  horaCierreMinFinde    Int @default(1320)
   duracionBloqueMin Int       @default(60)
   activa            Boolean   @default(true)
   creadoEn          DateTime  @default(now())
   reservas          Reserva[]
+  reservasRecurrentes ReservaRecurrente[]
 
   @@map("canchas")
 }
@@ -154,6 +170,7 @@ model Reserva {
   horaInicioMin Int           // minutos desde medianoche
   horaFinMin    Int
   estado        EstadoReserva @default(PENDIENTE_PAGO)
+  tipo          TipoReserva   @default(NORMAL)
   formaPago     FormaPago
   precioTotalQ  Decimal       @db.Decimal(10, 2)
   linkPago      String?       // compat: flujo manual v1, en desuso tras la migracion
@@ -202,11 +219,52 @@ model Pago {
   referenciaExterna String?
   codigoAutorizacion String?          // autorizacion de POS fisico, solo cuando gateway=TARJETA
   redirectUrl      String?
+  numeroRecibo     String?            @unique // solo cobros en sede (efectivo/tarjeta); ver PagosService.generarNumeroRecibo
   confirmadoEn     DateTime?
   creadoEn         DateTime           @default(now())
 
   @@index([tipoReferencia, referenciaId])
   @@map("pagos")
+}
+
+// Secuencia atomica por anio para numerar recibos impresos (REC-{anio}-{000000}).
+model ReciboContador {
+  anio         Int @id
+  ultimoNumero Int @default(0)
+
+  @@map("recibo_contadores")
+}
+
+/// Regla de reserva recurrente (academia o cliente especial) que un job
+/// diario materializa como filas Reserva (tipo ESPECIAL/ACADEMIA) con
+/// suficiente anticipacion. fechaFin null = indefinida.
+model ReservaRecurrente {
+  id            String      @id @default(uuid())
+  cancha        Cancha      @relation(fields: [canchaId], references: [id])
+  canchaId      String
+  cliente       Cliente     @relation(fields: [clienteId], references: [id])
+  clienteId     String
+  tipo          TipoReserva // ESPECIAL o ACADEMIA
+  diaSemana     Int         // 0=domingo .. 6=sabado
+  horaInicioMin Int
+  horaFinMin    Int
+  fechaInicio   DateTime    @db.Date
+  fechaFin      DateTime?   @db.Date
+  activa        Boolean     @default(true)
+  creadoEn      DateTime    @default(now())
+
+  @@map("reservas_recurrentes")
+}
+
+/// Clientes con promocion de fidelidad: cada 6ta reserva NORMAL confirmada
+/// es gratis (ver ClientesService.obtenerEstadoValorado).
+model ClienteValorado {
+  id        String   @id @default(uuid())
+  cliente   Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId String   @unique
+  creadoEn  DateTime @default(now())
+
+  @@map("clientes_valorados")
 }
 
 // ---------- Torneos (Fase 3) ----------
@@ -274,7 +332,8 @@ model Partido {
 /// por edad (categoria.util.ts) pero el admin puede sobrescribirla.
 model Alumno {
   id                String        @id @default(uuid())
-  nombre            String
+  nombres           String        // 2 nombres, un solo campo de texto (ver DTO)
+  apellidos         String        @default("") // 2 apellidos, un solo campo de texto
   fechaNacimiento   DateTime      @db.Date
   categoria         String        // ej. "Sub-10" — sugerida por edad, editable
   encargadoNombre   String

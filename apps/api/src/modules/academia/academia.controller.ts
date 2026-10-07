@@ -5,6 +5,7 @@ import { AlumnosService } from './alumnos.service';
 import { MensualidadesService } from './mensualidades.service';
 import { CrearAlumnoDto } from './dto/crear-alumno.dto';
 import { ActualizarAlumnoDto } from './dto/actualizar-alumno.dto';
+import { CobrarMensualidadSedeDto } from './dto/cobrar-mensualidad-sede.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 
 // Todo el modulo de academia es interno (a diferencia de reservas/torneos,
@@ -59,5 +60,11 @@ export class AcademiaController {
   @Get('alumnos/:id/mensualidades')
   listarMensualidadesDeAlumno(@Param('id') alumnoId: string) {
     return this.mensualidadesService.listarPorAlumno(alumnoId);
+  }
+
+  @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
+  @Post('mensualidades/:id/cobrar-sede')
+  cobrarMensualidadEnSede(@Param('id') id: string, @Body() dto: CobrarMensualidadSedeDto) {
+    return this.mensualidadesService.cobrarEnSede(id, dto.metodoPago, dto.codigoAutorizacion);
   }
 }

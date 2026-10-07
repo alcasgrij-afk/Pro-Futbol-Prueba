@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CrearAlumnoDto } from './dto/crear-alumno.dto';
 import { ActualizarAlumnoDto } from './dto/actualizar-alumno.dto';
@@ -12,9 +12,18 @@ export class AlumnosService {
     const fechaNacimiento = new Date(dto.fechaNacimiento);
     const categoria = dto.categoria?.trim() || sugerirCategoriaPorFechaNacimiento(fechaNacimiento);
 
+    const duplicado = await this.prisma.alumno.findFirst({
+      where: {
+        nombres: { equals: dto.nombres, mode: 'insensitive' },
+        apellidos: { equals: dto.apellidos, mode: 'insensitive' },
+      },
+    });
+    if (duplicado) throw new ConflictException('Ya existe un alumno con este nombre completo.');
+
     return this.prisma.alumno.create({
       data: {
-        nombre: dto.nombre,
+        nombres: dto.nombres,
+        apellidos: dto.apellidos,
         fechaNacimiento,
         categoria,
         encargadoNombre: dto.encargadoNombre,
@@ -29,7 +38,7 @@ export class AlumnosService {
         ...(filtros.categoria ? { categoria: filtros.categoria } : {}),
         ...(filtros.activo !== undefined ? { activo: filtros.activo } : {}),
       },
-      orderBy: { nombre: 'asc' },
+      orderBy: [{ nombres: 'asc' }, { apellidos: 'asc' }],
     });
   }
 
@@ -49,7 +58,8 @@ export class AlumnosService {
     return this.prisma.alumno.update({
       where: { id: alumnoId },
       data: {
-        ...(dto.nombre !== undefined ? { nombre: dto.nombre } : {}),
+        ...(dto.nombres !== undefined ? { nombres: dto.nombres } : {}),
+        ...(dto.apellidos !== undefined ? { apellidos: dto.apellidos } : {}),
         ...(dto.fechaNacimiento !== undefined ? { fechaNacimiento: new Date(dto.fechaNacimiento) } : {}),
         ...(dto.categoria !== undefined ? { categoria: dto.categoria } : {}),
         ...(dto.encargadoNombre !== undefined ? { encargadoNombre: dto.encargadoNombre } : {}),

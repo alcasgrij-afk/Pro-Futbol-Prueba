@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { EstadoReserva, GatewayPago, TipoCancha, type CanchaDTO, type ReservaDTO } from '@profutbol/shared-types';
+import { EstadoReserva, FormaPago, GatewayPago, TipoCancha, TipoReserva, type CanchaDTO, type ReservaDTO } from '@profutbol/shared-types';
 import { api, ApiError, type PagoDetalle } from '../../../lib/api-client';
 import { hoyISO } from '../../../lib/fechas';
 import ConfirmarModal from '../../../components/ConfirmarModal';
@@ -11,7 +11,27 @@ import ReciboImprimible from '../../../components/ReciboImprimible';
 // operacion); se piden directo con fetch (igual que WeekDatePicker, que ya
 // consume /api/canchas sin pasar por api-client) en vez de ampliar el DTO
 // compartido solo para esta pantalla.
-type CanchaConHorario = CanchaDTO & { horaAperturaMin: number; horaCierreMin: number; duracionBloqueMin: number };
+type CanchaConHorario = CanchaDTO & {
+  horaAperturaMinSemana: number;
+  horaCierreMinSemana: number;
+  horaAperturaMinFinde: number;
+  horaCierreMinFinde: number;
+  duracionBloqueMin: number;
+};
+
+// Sabado/domingo usan el horario de finde; lunes-viernes el de semana (ver
+// mismo criterio en apps/api/.../disponibilidad.util.ts resolverHorario).
+function esFinde(fecha: string): boolean {
+  const [y, m, d] = fecha.split('-').map(Number);
+  const dia = new Date(y, m - 1, d).getDay();
+  return dia === 0 || dia === 6;
+}
+
+function resolverHorario(cancha: CanchaConHorario, fecha: string): { aperturaMin: number; cierreMin: number } {
+  return esFinde(fecha)
+    ? { aperturaMin: cancha.horaAperturaMinFinde, cierreMin: cancha.horaCierreMinFinde }
+    : { aperturaMin: cancha.horaAperturaMinSemana, cierreMin: cancha.horaCierreMinSemana };
+}
 
 const ESTADOS_VISIBLES: EstadoReserva[] = [EstadoReserva.PENDIENTE_SEDE, EstadoReserva.PENDIENTE_PAGO, EstadoReserva.CONFIRMADA];
 
@@ -23,6 +43,20 @@ const COLOR_ESTADO: Record<string, string> = {
   [EstadoReserva.PENDIENTE_SEDE]: 'bg-blue-100 border-blue-400 text-blue-900',
   [EstadoReserva.PENDIENTE_PAGO]: 'bg-yellow-100 border-yellow-400 text-yellow-900',
 };
+
+// ESPECIAL/ACADEMIA son bloqueos, no reservas pagadas: color propio para que
+// el staff los distinga de un vistazo, sin importar su estado (siempre CONFIRMADA).
+const COLOR_TIPO: Record<string, string> = {
+  [TipoReserva.ESPECIAL]: 'bg-purple-100 border-purple-400 text-purple-900',
+  [TipoReserva.ACADEMIA]: 'bg-orange-100 border-orange-400 text-orange-900',
+};
+
+const ETIQUETA_TIPO: Record<string, string> = {
+  [TipoReserva.ESPECIAL]: 'Especial',
+  [TipoReserva.ACADEMIA]: 'Academia',
+};
+
+const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 function minutosAHora(min: number): string {
   const h = Math.floor(min / 60).toString().padStart(2, '0');
@@ -48,9 +82,10 @@ function minutosAhora(): number {
 // cobrar/reprogramar en sede para una hora que ya quedo atras).
 function generarSlots(cancha: CanchaConHorario | undefined, fecha?: string): string[] {
   if (!cancha) return [];
+  const { aperturaMin, cierreMin } = resolverHorario(cancha, fecha ?? hoyISO());
   const limiteMin = fecha === hoyISO() ? minutosAhora() : -1;
   const slots: string[] = [];
-  for (let m = cancha.horaAperturaMin; m + cancha.duracionBloqueMin <= cancha.horaCierreMin; m += ROW_MIN) {
+  for (let m = aperturaMin; m + cancha.duracionBloqueMin <= cierreMin; m += ROW_MIN) {
     if (m < limiteMin) continue;
     slots.push(minutosAHora(m));
   }
@@ -68,6 +103,7 @@ export default function CajaPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [cobroModal, setCobroModal] = useState<{ canchaId: string; horaInicio: string } | null>(null);
+  const [bloqueoModal, setBloqueoModal] = useState<TipoReserva.ESPECIAL | TipoReserva.ACADEMIA | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; reserva: ReservaDTO } | null>(null);
   const [modificarModal, setModificarModal] = useState<ReservaDTO | null>(null);
   const [eliminarModal, setEliminarModal] = useState<ReservaDTO | null>(null);
@@ -117,10 +153,11 @@ export default function CajaPage() {
 
   const { aperturaMin, filas } = useMemo(() => {
     if (canchasMostradas.length === 0) return { aperturaMin: 8 * 60, cierreMin: 22 * 60, filas: 0 };
-    const apertura = Math.min(...canchasMostradas.map((c) => c.horaAperturaMin));
-    const cierre = Math.max(...canchasMostradas.map((c) => c.horaCierreMin));
+    const horarios = canchasMostradas.map((c) => resolverHorario(c, fecha));
+    const apertura = Math.min(...horarios.map((h) => h.aperturaMin));
+    const cierre = Math.max(...horarios.map((h) => h.cierreMin));
     return { aperturaMin: apertura, cierreMin: cierre, filas: Math.round((cierre - apertura) / ROW_MIN) };
-  }, [canchasMostradas]);
+  }, [canchasMostradas, fecha]);
 
   const reservasPorCancha = useMemo(() => {
     const mapa = new Map<string, ReservaDTO[]>();
@@ -167,10 +204,28 @@ export default function CajaPage() {
   const horasEje = Array.from({ length: filas }, (_, i) => aperturaMin + i * ROW_MIN);
 
   return (
+    <>
+    {/* Todo el contenido normal de la pantalla va aqui, oculto al imprimir;
+        el recibo (fuera de este div) es lo unico que debe aparecer en el
+        print — si el recibo estuviera anidado DENTRO de este print:hidden,
+        un ancestro display:none se lo lleva con el, sin importar su propio
+        print:block (ver ReciboImprimible). */}
     <div className="space-y-4 -mx-6 px-6 max-w-none print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold text-navy">Caja — Cobro en sede</h1>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setBloqueoModal(TipoReserva.ESPECIAL)}
+            className="min-h-9 px-3 text-xs font-semibold rounded-md border border-purple-300 text-purple-700 hover:bg-purple-50"
+          >
+            Reserva Especial
+          </button>
+          <button
+            onClick={() => setBloqueoModal(TipoReserva.ACADEMIA)}
+            className="min-h-9 px-3 text-xs font-semibold rounded-md border border-orange-300 text-orange-700 hover:bg-orange-50"
+          >
+            Reserva Academia
+          </button>
           <div className="flex gap-1 bg-white border border-gray-300 rounded-md p-1">
             {(['F5', 'F7', 'AMBAS'] as Vista[]).map((v) => (
               <button
@@ -256,11 +311,13 @@ export default function CajaPage() {
                             e.stopPropagation();
                             setMenu({ x: e.clientX, y: e.clientY, reserva: r });
                           }}
-                          className={`absolute left-0.5 right-0.5 rounded border px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden ${COLOR_ESTADO[r.estado] ?? 'bg-gray-100 border-gray-300'}`}
+                          className={`absolute left-0.5 right-0.5 rounded border px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden ${COLOR_TIPO[r.tipo] ?? COLOR_ESTADO[r.estado] ?? 'bg-gray-100 border-gray-300'}`}
                           style={{ top, height: Math.max(alto, ROW_PX - 2) }}
-                          title={`${r.cliente?.nombre ?? ''} · ${r.horaInicio}–${r.horaFin}`}
+                          title={`${r.cliente?.nombre ?? ''} · ${r.horaInicio}–${r.horaFin}${ETIQUETA_TIPO[r.tipo] ? ` · ${ETIQUETA_TIPO[r.tipo]}` : ''}`}
                         >
-                          <div className="font-semibold truncate">{r.cliente?.nombre ?? '—'}</div>
+                          <div className="font-semibold truncate">
+                            {ETIQUETA_TIPO[r.tipo] ? `${ETIQUETA_TIPO[r.tipo]} · ` : ''}{r.cliente?.nombre ?? '—'}
+                          </div>
                           <div className="truncate opacity-80">{r.horaInicio}–{r.horaFin}</div>
                         </div>
                       );
@@ -311,6 +368,19 @@ export default function CajaPage() {
         />
       )}
 
+      {bloqueoModal && (
+        <BloqueoModal
+          tipo={bloqueoModal}
+          canchas={canchasMostradas}
+          fecha={fecha}
+          onClose={() => setBloqueoModal(null)}
+          onCreado={() => {
+            setBloqueoModal(null);
+            cargarReservas();
+          }}
+        />
+      )}
+
       {modificarModal && (
         <ModificarReservaModal
           reserva={modificarModal}
@@ -333,14 +403,16 @@ export default function CajaPage() {
           variante="peligro"
         />
       )}
+    </div>
 
-      {recibo && (
+    {recibo && (
         <>
           <ReciboImprimible
             titulo="Recibo de cobro — Cancha"
             subtitulo={`${recibo.canchaNombre ?? ''} · ${recibo.fecha?.slice(0, 10) ?? fecha} ${recibo.horaInicio ?? ''}`}
             cliente={{ nombre: recibo.clienteNombre ?? undefined, telefono: recibo.clienteTelefono ?? undefined }}
             metodoPago={recibo.gateway === GatewayPago.TARJETA ? `Tarjeta · autorización ${recibo.codigoAutorizacion ?? ''}` : 'Efectivo'}
+            numeroRecibo={recibo.numeroRecibo}
             lineas={[{ label: recibo.canchaNombre ?? 'Reserva de cancha', detalle: 'Reserva de cancha', valor: `Q${recibo.montoQ}` }]}
             totalQ={recibo.montoQ}
           />
@@ -354,7 +426,7 @@ export default function CajaPage() {
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }
 
@@ -383,6 +455,32 @@ function CobrarSedeModal({
   });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [vip, setVip] = useState<{ esValorado: boolean; siguienteEsGratis: boolean } | null>(null);
+  const [aplicarGratis, setAplicarGratis] = useState(false);
+
+  // Cliente Valorado (VIP): al completar el telefono (8 digitos) se consulta
+  // si le toca la reserva gratis del ciclo (cada 6ta). Numero nuevo/sin VIP
+  // simplemente no muestra nada (404 es el caso normal, se ignora).
+  useEffect(() => {
+    if (form.clienteTelefono.length !== 8) {
+      setVip(null);
+      setAplicarGratis(false);
+      return;
+    }
+    let vigente = true;
+    const t = setTimeout(async () => {
+      try {
+        const estado = await api.buscarClientePorTelefono(form.clienteTelefono);
+        if (vigente) setVip({ esValorado: estado.esValorado, siguienteEsGratis: estado.siguienteEsGratis });
+      } catch {
+        if (vigente) setVip(null);
+      }
+    }, 400);
+    return () => {
+      vigente = false;
+      clearTimeout(t);
+    };
+  }, [form.clienteTelefono]);
 
   const slots = useMemo(() => generarSlots(canchas.find((c) => c.id === form.canchaId), fecha), [canchas, form.canchaId, fecha]);
 
@@ -411,6 +509,7 @@ function CobrarSedeModal({
         horaInicio: form.horaInicio,
         metodoPago: form.metodoPago,
         ...(form.metodoPago === GatewayPago.TARJETA ? { codigoAutorizacion: form.codigoAutorizacion } : {}),
+        ...(aplicarGratis ? { gratis: true } : {}),
       });
       onCobrado(detalle);
     } catch (err) {
@@ -473,6 +572,16 @@ function CobrarSedeModal({
             className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
           />
         </label>
+
+        {vip?.esValorado && vip.siguienteEsGratis && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-2 space-y-1">
+            <p className="text-xs font-semibold text-amber-800">Cliente VIP · esta reservación es GRATIS (6/6)</p>
+            <label className="flex items-center gap-2 text-xs text-amber-800">
+              <input type="checkbox" checked={aplicarGratis} onChange={(e) => setAplicarGratis(e.target.checked)} />
+              Aplicar reservación gratis
+            </label>
+          </div>
+        )}
 
         <label className="block text-xs font-medium text-gray-600">
           Metodo de pago
@@ -595,6 +704,230 @@ function ModificarReservaModal({
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
+        </label>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} disabled={cargando} className="min-h-11 px-3 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
+            Cancelar
+          </button>
+          <button onClick={guardar} disabled={cargando} className="min-h-11 px-3 text-sm font-medium text-white bg-navy rounded-md disabled:opacity-50">
+            {cargando ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BloqueoModal({
+  tipo,
+  canchas,
+  fecha,
+  onClose,
+  onCreado,
+}: {
+  tipo: TipoReserva.ESPECIAL | TipoReserva.ACADEMIA;
+  canchas: CanchaConHorario[];
+  fecha: string;
+  onClose: () => void;
+  onCreado: () => void;
+}) {
+  const [modo, setModo] = useState<'unico' | 'recurrente'>('unico');
+  const [form, setForm] = useState({
+    canchaId: canchas[0]?.id ?? '',
+    clienteNombre: '',
+    clienteTelefono: '',
+    fecha,
+    horaInicio: '08:00',
+    horaFin: '09:00',
+    diaSemana: new Date(`${fecha}T00:00:00`).getDay(),
+    fechaInicio: fecha,
+    fechaFin: '',
+    indefinido: true,
+  });
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const titulo = tipo === TipoReserva.ACADEMIA ? 'Reserva Academia' : 'Reserva Especial';
+
+  async function guardar() {
+    if (!form.clienteNombre.trim() || form.clienteTelefono.length < 8) {
+      setError('Nombre y telefono son requeridos.');
+      return;
+    }
+    if (form.horaFin <= form.horaInicio) {
+      setError('La hora fin debe ser mayor que la hora de inicio.');
+      return;
+    }
+    setCargando(true);
+    setError(null);
+    try {
+      if (modo === 'unico') {
+        await api.crearReservaBloqueo({
+          canchaId: form.canchaId,
+          clienteNombre: form.clienteNombre.trim(),
+          clienteTelefono: form.clienteTelefono.trim(),
+          fecha: form.fecha,
+          horaInicio: form.horaInicio,
+          horaFin: form.horaFin,
+          tipo,
+          formaPago: FormaPago.EN_SEDE,
+        });
+      } else {
+        await api.crearReservaRecurrente({
+          canchaId: form.canchaId,
+          clienteNombre: form.clienteNombre.trim(),
+          clienteTelefono: form.clienteTelefono.trim(),
+          tipo,
+          diaSemana: form.diaSemana,
+          horaInicio: form.horaInicio,
+          horaFin: form.horaFin,
+          fechaInicio: form.fechaInicio,
+          ...(!form.indefinido && form.fechaFin ? { fechaFin: form.fechaFin } : {}),
+        });
+      }
+      onCreado();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo crear la reserva.');
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-base font-bold text-navy">{titulo}</h2>
+
+        <div className="flex gap-1 bg-gray-50 border border-gray-300 rounded-md p-1">
+          {([['unico', 'Un día'], ['recurrente', 'Recurrente']] as const).map(([v, etiqueta]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setModo(v)}
+              className={`flex-1 min-h-9 text-xs font-semibold rounded ${modo === v ? 'bg-navy text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              {etiqueta}
+            </button>
+          ))}
+        </div>
+
+        <label className="block text-xs font-medium text-gray-600">
+          Cancha
+          <select
+            value={form.canchaId}
+            onChange={(e) => setForm({ ...form, canchaId: e.target.value })}
+            className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm bg-white"
+          >
+            {canchas.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </select>
+        </label>
+
+        {modo === 'unico' ? (
+          <label className="block text-xs font-medium text-gray-600">
+            Fecha
+            <input
+              type="date"
+              value={form.fecha}
+              min={hoyISO()}
+              onChange={(e) => setForm({ ...form, fecha: e.target.value })}
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+            />
+          </label>
+        ) : (
+          <>
+            <label className="block text-xs font-medium text-gray-600">
+              Día de la semana
+              <select
+                value={form.diaSemana}
+                onChange={(e) => setForm({ ...form, diaSemana: Number(e.target.value) })}
+                className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm bg-white"
+              >
+                {DIAS_SEMANA.map((d, i) => (
+                  <option key={i} value={i}>{d}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs font-medium text-gray-600">
+              Desde
+              <input
+                type="date"
+                value={form.fechaInicio}
+                min={hoyISO()}
+                onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}
+                className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+              <input
+                type="checkbox"
+                checked={form.indefinido}
+                onChange={(e) => setForm({ ...form, indefinido: e.target.checked })}
+              />
+              Indefinido (sin fecha de fin)
+            </label>
+            {!form.indefinido && (
+              <label className="block text-xs font-medium text-gray-600">
+                Hasta
+                <input
+                  type="date"
+                  value={form.fechaFin}
+                  min={form.fechaInicio}
+                  onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}
+                  className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+                />
+              </label>
+            )}
+          </>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block text-xs font-medium text-gray-600">
+            Hora inicio
+            <input
+              type="time"
+              step={1800}
+              value={form.horaInicio}
+              onChange={(e) => setForm({ ...form, horaInicio: e.target.value })}
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+            />
+          </label>
+          <label className="block text-xs font-medium text-gray-600">
+            Hora fin
+            <input
+              type="time"
+              step={1800}
+              value={form.horaFin}
+              onChange={(e) => setForm({ ...form, horaFin: e.target.value })}
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+            />
+          </label>
+        </div>
+
+        <label className="block text-xs font-medium text-gray-600">
+          Nombre del cliente
+          <input
+            type="text"
+            value={form.clienteNombre}
+            onChange={(e) => setForm({ ...form, clienteNombre: e.target.value })}
+            className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+          />
+        </label>
+
+        <label className="block text-xs font-medium text-gray-600">
+          Telefono
+          <input
+            type="tel"
+            inputMode="numeric"
+            placeholder="XXXX-XXXX"
+            value={form.clienteTelefono.length > 4 ? `${form.clienteTelefono.slice(0, 4)}-${form.clienteTelefono.slice(4)}` : form.clienteTelefono}
+            onChange={(e) => setForm({ ...form, clienteTelefono: e.target.value.replace(/\D/g, '').slice(0, 8) })}
+            className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+          />
         </label>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

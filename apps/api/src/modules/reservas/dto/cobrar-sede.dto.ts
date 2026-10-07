@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { GatewayPago } from '@profutbol/shared-types';
-import { IsDateString, IsIn, IsString, Matches, MinLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsOptional, IsString, Matches, MinLength, ValidateIf } from 'class-validator';
 
 export class CobrarSedeDto {
   @ApiProperty({ example: 'seed-cancha-futbol-5' })
@@ -33,4 +33,11 @@ export class CobrarSedeDto {
   @ValidateIf((o) => o.metodoPago === GatewayPago.TARJETA)
   @Matches(/^\d{6,12}$/, { message: 'Código POS debe tener entre 6 y 12 dígitos.' })
   codigoAutorizacion?: string;
+
+  // Beneficio de Cliente Valorado (VIP): staff marca la reserva como gratis
+  // (6ta reserva del ciclo). Ver ClientesService.buscarConEstadoValorado.
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  gratis?: boolean;
 }

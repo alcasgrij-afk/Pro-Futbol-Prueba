@@ -48,13 +48,13 @@ export class VentasService {
       include: { items: true, cliente: true },
     });
 
-    await this.pagosService.cobrarEfectivo({
+    const pago = await this.pagosService.cobrarEfectivo({
       tipoReferencia: TipoPagoReferencia.VENTA,
       referenciaId: venta.id,
       montoQ: montoTotalQ,
     });
 
-    return venta;
+    return { ...venta, numeroRecibo: pago.numeroRecibo };
   }
 
   async listar(filtros: { desde?: string; hasta?: string }) {

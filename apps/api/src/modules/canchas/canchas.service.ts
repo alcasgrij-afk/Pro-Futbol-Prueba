@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EstadoReserva } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { calcularBloquesDisponibilidad } from './disponibilidad.util';
+import { calcularBloquesDisponibilidad, resolverHorario } from './disponibilidad.util';
 
 // Estados que efectivamente "ocupan" el horario a efectos de disponibilidad.
 const ESTADOS_ACTIVOS: EstadoReserva[] = [
@@ -37,11 +37,7 @@ export class CanchasService {
     });
 
     const bloques = calcularBloquesDisponibilidad(
-      {
-        horaAperturaMin: cancha.horaAperturaMin,
-        horaCierreMin: cancha.horaCierreMin,
-        duracionBloqueMin: cancha.duracionBloqueMin,
-      },
+      { ...resolverHorario(cancha, fecha), duracionBloqueMin: cancha.duracionBloqueMin },
       reservasDelDia,
     );
 
@@ -75,11 +71,7 @@ export class CanchasService {
 
     return canchas.map((cancha) => {
       const bloques = calcularBloquesDisponibilidad(
-        {
-          horaAperturaMin: cancha.horaAperturaMin,
-          horaCierreMin: cancha.horaCierreMin,
-          duracionBloqueMin: cancha.duracionBloqueMin,
-        },
+        { ...resolverHorario(cancha, fecha), duracionBloqueMin: cancha.duracionBloqueMin },
         reservasPorCancha.get(cancha.id) ?? [],
       );
       return { canchaId: cancha.id, fecha, bloques: this.filtrarBloquesPasados(bloques, fecha) };

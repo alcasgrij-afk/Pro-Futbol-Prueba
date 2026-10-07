@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GatewayPago, TipoPagoReferencia } from '@profutbol/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -42,14 +42,14 @@ export class MensualidadesService {
           where: { tipoReferencia: TipoPagoReferencia.MENSUALIDAD, referenciaId: yaExiste.id },
           select: { id: true },
         });
-        if (!tienePago) await this.generarLinkDePago(yaExiste.id, mes, anio, alumno.nombre, montoQ);
+        if (!tienePago) await this.generarLinkDePago(yaExiste.id, mes, anio, `${alumno.nombres} ${alumno.apellidos}`, montoQ);
         continue;
       }
 
       const mensualidad = await this.prisma.academiaMensualidad.create({
         data: { alumnoId: alumno.id, mes, anio, montoQ },
       });
-      await this.generarLinkDePago(mensualidad.id, mes, anio, alumno.nombre, montoQ);
+      await this.generarLinkDePago(mensualidad.id, mes, anio, `${alumno.nombres} ${alumno.apellidos}`, montoQ);
       generadas++;
     }
 
@@ -57,6 +57,24 @@ export class MensualidadesService {
       this.logger.log(`Mensualidades generadas para ${mes}/${anio}: ${generadas}`);
     }
     return generadas;
+  }
+
+  /**
+   * Cobro en persona (Efectivo/Tarjeta) de una mensualidad, igual al cobro en
+   * sede de Caja: usa el mismo PagosService.cobrarEfectivo (Pago COMPLETADO
+   * + numeroRecibo), sin pasar por el link de pasarela.
+   */
+  async cobrarEnSede(mensualidadId: string, metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA, codigoAutorizacion?: string) {
+    const mensualidad = await this.prisma.academiaMensualidad.findUnique({ where: { id: mensualidadId } });
+    if (!mensualidad) throw new NotFoundException('Mensualidad no encontrada.');
+
+    return this.pagosService.cobrarEfectivo({
+      tipoReferencia: TipoPagoReferencia.MENSUALIDAD,
+      referenciaId: mensualidad.id,
+      montoQ: Number(mensualidad.montoQ),
+      gateway: metodoPago,
+      codigoAutorizacion,
+    });
   }
 
   private async generarLinkDePago(

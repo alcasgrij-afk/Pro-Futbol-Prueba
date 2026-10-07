@@ -11,6 +11,30 @@ export interface ReglasCancha {
   duracionBloqueMin: number;
 }
 
+export interface HorarioCancha {
+  horaAperturaMinSemana: number;
+  horaCierreMinSemana: number;
+  horaAperturaMinFinde: number;
+  horaCierreMinFinde: number;
+}
+
+/**
+ * Resuelve el horario de apertura/cierre segun el dia de la semana de
+ * `fecha` (YYYY-MM-DD, se interpreta como fecha local). Sabado/domingo usan
+ * el horario de finde; lunes-viernes el de semana.
+ */
+export function resolverHorario(
+  cancha: HorarioCancha,
+  fecha: string,
+): { horaAperturaMin: number; horaCierreMin: number } {
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const diaSemana = new Date(anio, mes - 1, dia).getDay(); // 0=domingo, 6=sabado
+  const esFinde = diaSemana === 0 || diaSemana === 6;
+  return esFinde
+    ? { horaAperturaMin: cancha.horaAperturaMinFinde, horaCierreMin: cancha.horaCierreMinFinde }
+    : { horaAperturaMin: cancha.horaAperturaMinSemana, horaCierreMin: cancha.horaCierreMinSemana };
+}
+
 /**
  * Calcula los bloques de horario de una cancha para un dia dado, marcando
  * cuales estan libres y cuales ocupados.

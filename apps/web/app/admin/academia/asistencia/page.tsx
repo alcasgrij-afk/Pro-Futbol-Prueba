@@ -81,7 +81,7 @@ export default function AsistenciaPage() {
             <tbody>
               {alumnos.map((a) => (
                 <tr key={a.id} className="border-t border-gray-100">
-                  <td className="px-4 py-2 font-medium">{a.nombre}</td>
+                  <td className="px-4 py-2 font-medium">{a.nombres} {a.apellidos}</td>
                   <td className="px-4 py-2 text-gray-600">{a.categoria}</td>
                   <td className="px-4 py-2">
                     <div className="flex items-center justify-end gap-2">

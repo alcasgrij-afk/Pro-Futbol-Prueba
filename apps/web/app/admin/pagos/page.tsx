@@ -240,7 +240,7 @@ function GastosTab() {
     setExportando(formato);
     try {
       const ext = formato === 'excel' ? 'xlsx' : 'pdf';
-      await api.descargarExportacion(`/gastos/exportar?desde=${desde}&hasta=${hasta}&formato=${formato}`, `gastos_${desde}_a_${hasta}.${ext}`);
+      await api.descargarExportacion(`/gastos/exportar?desde=${desde}&hasta=${hasta}&formato=${formato}`, `Reporte de Gastos ${hoyISO()}.${ext}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo generar el archivo.');
     } finally {
@@ -383,7 +383,7 @@ function GastosTab() {
             totalQ={resumen?.totalQ ?? 0}
           />
           <div className="print:hidden fixed bottom-4 right-4 flex gap-2 z-50">
-            <button onClick={() => window.print()} className="min-h-11 px-4 bg-navy text-white rounded-md text-sm font-semibold shadow-lg">
+            <button onClick={() => imprimirConNombre(`Reporte de Gastos ${hoyISO()}`)} className="min-h-11 px-4 bg-navy text-white rounded-md text-sm font-semibold shadow-lg">
               Imprimir
             </button>
             <button onClick={() => setMostrarRecibo(false)} className="min-h-11 px-4 bg-white border border-gray-300 rounded-md text-sm font-semibold shadow-lg">
@@ -394,4 +394,17 @@ function GastosTab() {
       )}
     </div>
   );
+}
+
+// El navegador sugiere document.title como nombre por defecto al "Guardar como PDF"
+// desde el dialogo de impresion; se restaura al cerrar para no afectar la pestana.
+function imprimirConNombre(nombre: string) {
+  const original = document.title;
+  document.title = nombre;
+  const restaurar = () => {
+    document.title = original;
+    window.removeEventListener('afterprint', restaurar);
+  };
+  window.addEventListener('afterprint', restaurar);
+  window.print();
 }

@@ -108,6 +108,10 @@ export default function ProductosPage() {
   }
 
   return (
+    <>
+    {/* El recibo vive fuera de este print:hidden (ver nota equivalente en
+        admin/caja/page.tsx) para que no quede oculto por un ancestro
+        display:none al imprimir. */}
     <div className="space-y-6 print:hidden">
       <h1 className="text-lg font-bold text-navy">Tienda — Venta de productos</h1>
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -240,12 +244,14 @@ export default function ProductosPage() {
           </div>
         </div>
       )}
+    </div>
 
-      {recibo && (
+    {recibo && (
         <>
           <ReciboImprimible
             titulo="Recibo de venta"
             subtitulo={recibo.cliente?.nombre}
+            numeroRecibo={recibo.numeroRecibo}
             lineas={recibo.items.map((i) => ({
               label: i.nombreSnapshot,
               detalle: `${i.cantidad} x Q${i.precioUnitarioQ}`,
@@ -263,6 +269,6 @@ export default function ProductosPage() {
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }

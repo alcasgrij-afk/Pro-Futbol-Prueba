@@ -2,7 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { RESERVAS_QUEUE } from '../../queue/queue.module';
-import { ReservasService, JOB_LIBERAR_RESERVA } from './reservas.service';
+import { ReservasService, JOB_LIBERAR_RESERVA, JOB_MATERIALIZAR_RECURRENTES } from './reservas.service';
 
 /**
  * Worker que procesa los trabajos de la cola "reservas".
@@ -22,6 +22,9 @@ export class ReservasProcessor extends WorkerHost {
     switch (job.name) {
       case JOB_LIBERAR_RESERVA:
         await this.reservasService.liberarPorTimeout(job.data.reservaId);
+        break;
+      case JOB_MATERIALIZAR_RECURRENTES:
+        await this.reservasService.materializarTodasLasRecurrencias();
         break;
       default:
         this.logger.warn(`Tipo de trabajo desconocido: ${job.name}`);

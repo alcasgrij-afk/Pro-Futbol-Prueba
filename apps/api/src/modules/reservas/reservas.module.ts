@@ -6,11 +6,12 @@ import { PricingModule } from '../pricing/pricing.module';
 import { ReservasController } from './reservas.controller';
 import { ReservasService } from './reservas.service';
 import { ReservasProcessor } from './reservas.processor';
+import { ReservasSchedulerService } from './reservas-scheduler.service';
 
 @Module({
   imports: [QueueModule, ClientesModule, CanchasModule, PricingModule],
   controllers: [ReservasController],
-  providers: [ReservasService, ReservasProcessor],
+  providers: [ReservasService, ReservasProcessor, ReservasSchedulerService],
   exports: [ReservasService],
 })
 export class ReservasModule {}

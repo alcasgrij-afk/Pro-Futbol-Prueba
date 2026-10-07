@@ -69,7 +69,7 @@ describe('ReportesService', () => {
   describe('ocupacion', () => {
     it('calcula el porcentaje de bloques ocupados por cancha', async () => {
       prisma.cancha.findMany.mockResolvedValue([
-        { id: 'c1', nombre: 'Cancha A', horaAperturaMin: 480, horaCierreMin: 1320, duracionBloqueMin: 60 },
+        { id: 'c1', nombre: 'Cancha A', horaAperturaMinSemana: 480, horaCierreMinSemana: 1320, horaAperturaMinFinde: 480, horaCierreMinFinde: 1320, duracionBloqueMin: 60 },
       ]);
       prisma.reserva.count.mockResolvedValue(5);
 
@@ -83,7 +83,7 @@ describe('ReportesService', () => {
 
     it('filtra las reservas por estado CONFIRMADA y rango de fechas', async () => {
       prisma.cancha.findMany.mockResolvedValue([
-        { id: 'c1', nombre: 'Cancha A', horaAperturaMin: 480, horaCierreMin: 1320, duracionBloqueMin: 60 },
+        { id: 'c1', nombre: 'Cancha A', horaAperturaMinSemana: 480, horaCierreMinSemana: 1320, horaAperturaMinFinde: 480, horaCierreMinFinde: 1320, duracionBloqueMin: 60 },
       ]);
       await service.ocupacion('2026-07-01', '2026-07-07');
       const filtro = prisma.reserva.count.mock.calls[0][0].where;
@@ -118,7 +118,7 @@ describe('ReportesService', () => {
       prisma.academiaMensualidad.findUnique.mockResolvedValue({
         mes: 7,
         anio: 2026,
-        alumno: { nombre: 'Mateo', encargadoTelefono: '50255551234' },
+        alumno: { nombres: 'Mateo', apellidos: 'Garcia', encargadoTelefono: '50255551234' },
       });
 
       const reporte = await service.morosidad(7);

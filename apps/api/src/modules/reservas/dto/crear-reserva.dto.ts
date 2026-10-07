@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { FormaPago } from '@prisma/client';
-import { IsDateString, IsEnum, IsString, Matches, MinLength } from 'class-validator';
+import { FormaPago, TipoReserva } from '@prisma/client';
+import { IsDateString, IsEnum, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class CrearReservaDto {
   @ApiProperty({ example: 'seed-cancha-futbol-5' })
@@ -28,4 +28,17 @@ export class CrearReservaDto {
   @ApiProperty({ enum: FormaPago, example: FormaPago.ANTICIPADO_EN_LINEA })
   @IsEnum(FormaPago)
   formaPago: FormaPago;
+
+  // Solo honrado por el endpoint de staff /reservas/bloqueo; el endpoint
+  // publico /reservas siempre fuerza NORMAL (ver ReservasController.crear).
+  @ApiProperty({ enum: TipoReserva, example: TipoReserva.NORMAL, required: false })
+  @IsOptional()
+  @IsEnum(TipoReserva)
+  tipo?: TipoReserva;
+
+  // Fin explicito del bloque (multi-hora), solo para tipo ESPECIAL/ACADEMIA.
+  @ApiProperty({ example: '20:00', required: false })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'horaFin debe tener formato HH:mm.' })
+  horaFin?: string;
 }
