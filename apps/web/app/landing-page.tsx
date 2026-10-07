@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { TipoCancha, type CanchaDTO } from '@profutbol/shared-types';
+import SiteHeader from '../components/public/SiteHeader';
+import SiteFooter from '../components/public/SiteFooter';
 
 // Precios de respaldo si /api/canchas no responde: deben coincidir con el
 // seed real (ver apps/api/prisma/seed.ts) para no repetir el bug de mostrar
@@ -13,7 +15,6 @@ const PRECIOS_RESPALDO: Record<TipoCancha, { precioAnticipadoQ: number; precioSe
 };
 
 export default function LandingPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Precios reales de /api/canchas: el precio mostrado aqui venia hardcodeado
   // ("Q350" para ambas canchas) y no coincidia con el precio real de reserva.
   const [canchas, setCanchas] = useState<CanchaDTO[] | null>(null);
@@ -29,77 +30,9 @@ export default function LandingPage() {
     return canchas?.find((c) => c.tipo === tipo) ?? PRECIOS_RESPALDO[tipo];
   }
 
-  useEffect(() => {
-    // Smooth scroll for anchor links
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', (e) => {
-        e.preventDefault();
-        const href = (e.currentTarget as HTMLAnchorElement).getAttribute('href');
-        if (!href || href === '#') { setMobileMenuOpen(false); return; }
-        const target = document.querySelector(href);
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          setMobileMenuOpen(false);
-        }
-      });
-    });
-  }, []);
-
   return (
     <div className="min-h-screen bg-white text-[#122447]">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-        <nav className="max-w-[1180px] mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center">
-            <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={453} height={162} className="h-9 w-auto" priority />
-          </Link>
-
-          {/* Desktop nav */}
-          <ul className="hidden md:flex items-center gap-8 text-[15px] font-medium">
-            <li><a href="#inicio" className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">Inicio</a></li>
-            <li><a href="#reservar" className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">Reservar</a></li>
-            <li><a href="#canchas" className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">Canchas</a></li>
-            <li><a href="#precios" className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">Precios</a></li>
-            <li><a href="#informacion" className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">Información</a></li>
-            <li><a href="#contacto" className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">Contacto</a></li>
-          </ul>
-
-          <div className="flex items-center gap-4">
-            <Link
-              href="/reservar"
-              className="hidden md:inline-flex items-center gap-2 bg-[#d8b32d] text-[#0a3d7d] px-6 py-3 rounded-full font-semibold hover:bg-[#d0a92a] transition-all hover:-translate-y-0.5 shadow-lg"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="5" width="18" height="16" rx="2"/>
-                <path d="M16 3v4M8 3v4M3 10h18"/>
-              </svg>
-              Reservar Ahora
-            </Link>
-
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden flex flex-col gap-1.5 p-2"
-              aria-label="Abrir menú"
-            >
-              <span className="w-6 h-0.5 bg-[#0a3d7d] rounded"></span>
-              <span className="w-6 h-0.5 bg-[#0a3d7d] rounded"></span>
-              <span className="w-6 h-0.5 bg-[#0a3d7d] rounded"></span>
-            </button>
-          </div>
-        </nav>
-
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-100 py-4 px-6">
-            <a href="#inicio" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Inicio</a>
-            <a href="#reservar" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Reservar</a>
-            <a href="#canchas" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Canchas</a>
-            <a href="#precios" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Precios</a>
-            <a href="#informacion" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">Información</a>
-            <a href="#contacto" onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium">Contacto</a>
-          </div>
-        )}
-      </header>
+      <SiteHeader />
 
       <main>
         {/* Hero */}
@@ -388,72 +321,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-[#0a3d7d] text-[#cfe0fb] py-16 px-6">
-        <div className="max-w-[1180px] mx-auto">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-9 mb-12">
-            <div>
-              <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={453} height={162} className="h-9 w-auto mb-3.5" />
-              <p className="text-sm text-[#9fb6de] leading-relaxed max-w-[260px]">
-                Canchas de fútbol sintéticas en Antigua Guatemala. Reserva fácil, rápido y seguro.
-              </p>
-              <div className="flex gap-3 mt-4">
-                {[
-                  { label: 'Instagram', href: 'https://www.instagram.com/profutbol_gt/?hl=en' },
-                  { label: 'Facebook', href: 'https://www.facebook.com/profile.php?id=100063443599213' },
-                  { label: 'WhatsApp', href: 'https://wa.me/50237063030' },
-                  { label: 'TikTok', href: 'https://www.tiktok.com/@profutbol_gt' },
-                  { label: 'Waze', href: 'https://www.waze.com/es-419/live-map/directions/profutbol-antigua-calle-del-chajon-25-la-antigua-guatemala?to=place.w.176488594.1764623792.17900633' },
-                ].map(({ label, href }, i) => (
-                  <a key={i} href={href} aria-label={label} target={href === '#' ? undefined : '_blank'} rel={href === '#' ? undefined : 'noopener noreferrer'} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors">
-                    <svg className="w-4 h-4 stroke-[#cfe0fb]" viewBox="0 0 24 24" fill="none" strokeWidth="2">
-                      {i === 0 && <><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></>}
-                      {i === 1 && <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>}
-                      {i === 2 && <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>}
-                      {i === 3 && <><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></>}
-                      {i === 4 && <><path d="M12 21s-7-7.58-7-12a7 7 0 0 1 14 0c0 4.42-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></>}
-                    </svg>
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h5 className="text-white text-sm font-semibold mb-4 tracking-wide">Navegación</h5>
-              <ul className="space-y-2.5 text-sm">
-                <li><a href="#inicio" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Inicio</a></li>
-                <li><a href="#reservar" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Reservar</a></li>
-                <li><a href="#canchas" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Canchas</a></li>
-                <li><a href="#precios" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Precios</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h5 className="text-white text-sm font-semibold mb-4 tracking-wide">Empresa</h5>
-              <ul className="space-y-2.5 text-sm">
-                <li><a href="#informacion" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Información</a></li>
-                <li><a href="#" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Nosotros</a></li>
-                <li><a href="#" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Preguntas frecuentes</a></li>
-                <li><a href="#contacto" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Contacto</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h5 className="text-white text-sm font-semibold mb-4 tracking-wide">Legal</h5>
-              <ul className="space-y-2.5 text-sm">
-                <li><a href="#" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Términos y condiciones</a></li>
-                <li><a href="#" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Política de privacidad</a></li>
-                <li><a href="#" className="text-[#9fb6de] hover:text-[#d8b32d] transition-colors">Política de cancelación</a></li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-[#7f99c7]">
-            <span>© 2026 Pro Futbol Antigua. Todos los derechos reservados.</span>
-            <span>Hecho con ⚽ en Antigua Guatemala</span>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
