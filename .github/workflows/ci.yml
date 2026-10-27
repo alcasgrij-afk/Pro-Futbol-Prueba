@@ -69,16 +69,3 @@ jobs:
 
       - name: Build Web
         run: npm run build:web
-
-  # Se activa recien cuando el merge llega a main; construye y publica la
-  # imagen Docker de la API. El despliegue real a staging/produccion (paso
-  # final del flujo de CI/CD, ver Plan Tecnico seccion 7) se agrega cuando
-  # el equipo defina el proveedor de hosting definitivo.
-  build-imagen-docker:
-    needs: lint-test-build
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build imagen Docker de la API
-        run: docker build -f apps/api/Dockerfile -t profutbol-api:${{ github.sha }} .

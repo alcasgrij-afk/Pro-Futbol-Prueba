@@ -284,11 +284,10 @@ JWT"): generar secretos nuevos (`openssl rand -hex 64`), actualizar
 RS256 (rotación sin invalidar tokens activos) queda documentada como
 evolución futura.
 
-### 3.4 Dependabot/Renovate ✅ (resuelto 2026-09-07)
+### 3.4 Dependabot/Renovate ✅ (resuelto 2026-09-07; alerts confirmadas 2026-10-27)
 `.github/dependabot.yml` creado (npm/weekly, máx. 5 PRs) para actualizaciones
-automáticas de dependencias. La detección de vulnerabilidades en transitivas
-(Dependabot alerts) requiere todavía un paso **manual EXTERNO**: ir a GitHub →
-Settings → Security → Dependabot alerts → Enable (5 minutos).
+automáticas de dependencias. Dependabot alerts (detección de vulnerabilidades
+en transitivas) confirmado **activo** en GitHub → Settings → Security.
 
 ---
 
@@ -483,7 +482,7 @@ un techo conocido:
 |---|---|---|
 | `academia-notificaciones.scanner.ts` | Notificaciones solo loguean, no envían WhatsApp/SMS | Integrar gateway de WhatsApp Business API cuando esté disponible |
 | ~~`chat-gateway.ts`~~ | ~~Rate limiting en memoria (Map)~~ — **archivo eliminado 2026-09-13**; el chat ahora es `POST /api/chat/mensajes` con `@Throttle` global (30/60s). Ver sección 10.1 | Si el hosting usa múltiples réplicas, que Redis (BullMQ ya usa Redis) provea el store de throttling |
-| `chat.service.ts` | Normalización de texto con `toLowerCase().trim()` simple | Agregar stemming/lematización si se necesita matching más robusto |
+| `chat.service.ts` | `esCancelacion` detecta intención de cancelar con match exacto contra 4 palabras fijas (`cancelar/cancela/salir/stop`), sin fuzzy/stemming. (El matcher de nombre de cancha, `resolverCanchaPorTexto`/`normalizar`, ya hace NFD + remueve acentos + colapsa espacios — no entra en esta simplificación) | Agregar stemming/lematización a `esCancelacion` si se necesita matching más robusto de la intención de cancelar |
 | `pagos/gateways/gateway.service.ts` | Llamada HTTP real a pasarela de pago no implementada (stub) | Implementar HTTP real cuando se defina la integración con BAC/NeoNet |
 | `torneos/fixture.service.ts` | Rondas siguientes de eliminación directa se arman manualmente — **resuelto 2026-09-13**: `generarRondaSiguiente` arma rondas 2+ con los ganadores; empates requieren `penalesGanadorId` (selector en el panel admin), sino responde `penalesPendientes` | Si el desempate por penales necesita marcador numérico (goles de penales), guardarlo además del ganador |
 
@@ -510,11 +509,14 @@ corregida) y `MANUAL_USUARIO.md` apunta a la ruta real `/login` (no
   incidente de 2026-10-27 arriba): API NestJS + Postgres + Redis en
   **Render** (servicio `Pro-Futbol-Prueba`, auto-deploy on push a `main`),
   frontend Next.js en **Vercel** (`profutbol-antigua`, auto-deploy on push).
-  Ninguno de los dos usa el paso `build-imagen-docker` de CI — cada uno
-  construye su propia imagen/build directamente desde el repo. Ese job de
-  CI corre en cada push pero su artefacto **no se usa para nada**; es
-  trabajo muerto o, si se mantiene a propósito como smoke build, vale la
-  pena decirlo en un comentario del workflow.
+  Ninguno de los dos usa Docker/una imagen pre-construida — cada uno
+  construye su propio build directamente desde el repo en cada deploy.
+- **`build-imagen-docker` eliminado (2026-10-27).** El job de CI hacía
+  `docker build` tras cada merge a `main` pero nunca publicaba la imagen
+  (sin `docker push`/registro) ni nada la consumía — Render construye su
+  propia imagen del mismo `Dockerfile` de forma independiente. Era trabajo
+  duplicado sin beneficio (ni siquiera corría en PRs, solo podía marcar en
+  rojo un commit ya mergeado a `main`). Quitado de `.github/workflows/ci.yml`.
 - **Riesgo real y ya materializado una vez:** el Postgres de Render es
   plan **free**, que expira automáticamente a los 30 días sin aviso dentro
   de la app (solo un mensaje en el dashboard de Render) — causó una caída
@@ -526,10 +528,9 @@ corregida) y `MANUAL_USUARIO.md` apunta a la ruta real `/login` (no
 - Los k6 load tests siguen sin correr en CI (ver sección 2.2) — solo manual.
 
 **Para resolver:** (a) decidir upgrade-a-pago vs. migrar la DB antes del
-2026-11-26 — es lo más urgente; (b) decidir si el job `build-imagen-docker`
-se elimina (no se usa) o se conecta a un deploy real; (c) agregar alerta de
-monitoreo que no dependa de que un usuario reporte el sitio caído (Sentry ya
-está integrado — sección 5 — pero no cubre "la DB entera desapareció").
+2026-11-26 — es lo más urgente; (b) agregar alerta de monitoreo que no
+dependa de que un usuario reporte el sitio caído (Sentry ya está integrado
+— sección 5 — pero no cubre "la DB entera desapareció").
 
 ---
 
@@ -656,6 +657,7 @@ verificación en browser.
 | Incidente: Postgres free de Render expirado (sección 9) | Causó caída total de `/reservar` por 10 días sin detectar | ✅ resuelto (2026-10-27): nueva DB free, expira otra vez 2026-11-26 — decidir upgrade/migración antes |
 | Blackout de horarios de academia en `/reservar` | Backend (categoriaAcademia) + frontend (bloques negros) + 12 reglas recurrentes reales | ✅ resuelto (2026-10-27): verificado end-to-end, 137/137 tests |
 | Credenciales admin/superadmin | `/superadmin` nunca tuvo password configurado en producción | ✅ resuelto (2026-10-27): generadas, guardadas en Render, verificadas con login real |
-| CI/CD — hosting (sección 9) | Antes: "sin definir". Ahora: Render (API) + Vercel (web), ambos en vivo | ⚠️ hosting resuelto; job `build-imagen-docker` sin uso real, pendiente decidir |
+| CI/CD — hosting (sección 9) | Antes: "sin definir". Ahora: Render (API) + Vercel (web), ambos en vivo | ⚠️ hosting resuelto; `build-imagen-docker` eliminado (2026-10-27, no se usaba); sigue pendiente alerta de monitoreo para caída total de DB |
+| Dependabot alerts (sección 3.4) | Detección de vulnerabilidades en transitivas vía GitHub Security | ✅ confirmado activo (2026-10-27) |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).
