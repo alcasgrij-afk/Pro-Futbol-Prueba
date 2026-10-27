@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"profutbol-antigua convention: at the start of this session, before other work, check how stale PENDIENTES.md is (git log -1 --format=%ad -- PENDIENTES.md) and compare against recent commits (git log --oneline --since=<that date>). Update PENDIENTES.md to reflect what actually happened since then (resolved items, newly discovered pending items, infra/deploy changes, drift) \\u2014 do not just append, bring it current.\"}}'"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -4,6 +4,71 @@ Lista de TODO lo que quedó pendiente o fue intencionalmente simplificado
 durante las Fases 1–5. No es un backlog priorizado — es un inventario
 para que el equipo decida qué atacar y cuándo.
 
+> **Convención del proyecto (desde 2026-10-27):** este archivo se revisa y
+> actualiza al **inicio de cada sesión** contra `git log` (hook `SessionStart`
+> en `.claude/settings.json`) — no dejarlo acumular drift como pasó entre
+> 2026-09-24 y 2026-10-27 (11 commits de features/infra sin registrar aquí).
+
+## Resuelto (2026-10-27)
+
+- **Incidente de producción: base de datos gratuita expirada** — el Postgres
+  gratis de Render (`Profutbol Antigua`, creado 2026-09-17) expiró el
+  2026-10-17 (`status: suspended`, `suspenders: ["billing"]`), lo que dejaba
+  la API sin arrancar (`onModuleInit` cuelga sin DB) y Render terminaba
+  retirando el servicio del routing (`x-render-routing: no-server`) — por
+  eso `/reservar` mostraba el selector de horario completamente vacío, sin
+  ningún error visible. Resuelto vía API de Render (cuenta POC, se eligió no
+  pagar): nueva instancia Postgres free `profutbol-antigua-db-v2`,
+  `DATABASE_URL` actualizada en el env group compartido (solo esa clave, el
+  resto de secretos no se tocó), redeploy — el build command ya corre
+  `prisma migrate deploy` + `prisma:seed` automáticamente. **Riesgo
+  recurrente:** la nueva DB expira otra vez el 2026-11-26 salvo que se
+  actualice a plan pago antes de esa fecha, o se migre a un proveedor sin
+  expiración (Neon/Supabase). Ver sección 9.
+- **`WeekDatePicker.tsx` fallaba en silencio ante errores de red** — el
+  fetch de `/api/canchas` atrapaba cualquier falla (timeout, 5xx, backend
+  caído) y seteaba `canchas = []`, indistinguible de "cero canchas
+  configuradas": no se mostraba ningún error al usuario. Ahora el estado
+  `'error'` se distingue de `[]` y muestra un mensaje visible
+  ("No pudimos cargar las canchas…") en vez de una caja vacía.
+- **Blackout de horarios de academia en `/reservar` con categoría visible**
+  — hasta ahora los horarios de la academia (tabla pública en `/academia`:
+  U-7/U-9/U-11/U-13-15-17, martes/jueves/sábado) no bloqueaban nada en el
+  selector de reservas; solo existían como copy de marketing. Se usó el
+  sistema de `ReservaRecurrente` (ya existía en el backend, nunca se había
+  usado) para crear 12 reglas recurrentes reales (3 días × 4 categorías),
+  repartidas U-7/U-9 en Cancha 1 (Futbol 5) y U-11/U-13-15-17 en Cancha 2
+  (Futbol 7) — evita el choque real de horario que había en el dato
+  original (U-9 y U-11 compartían sábado 10-11am). `disponibilidad` ahora
+  expone `categoriaAcademia` en los bloques ocupados por un bloqueo tipo
+  `ACADEMIA` (reusa `Reserva.cliente.nombre`, ej. `"Academia U-7"`; los
+  demás tipos de reserva no exponen nombre de cliente). `WeekDatePicker`
+  pinta esos bloques en negro con la categoría visible y **nunca**
+  seleccionables (sin `onClick`, siempre `disabled`). Verificado end-to-end
+  vía el proxy real de Vercel → Render, sin solapamientos. Test unitario
+  agregado en `disponibilidad.util.spec.ts`. Suite completa 137/137.
+  - **Dato operativo:** las 4 "academias" se registraron como clientes
+    placeholder (`00000007`/`9`/`11`/`13`, nombre `Academia U-N`) porque no
+    existe todavía un campo `categoria` en el modelo ni una UI admin para
+    esto — si el horario real cambia, hay que repetir la llamada a
+    `POST /reservas/recurrentes` o pedir una pantalla admin dedicada.
+  - **Credenciales admin confirmadas/regeneradas:** `admin@profutbolantigua.com`
+    seguía con el password default de seed (sin cambiar desde fase 1). El
+    panel `/superadmin` nunca tuvo `SUPERADMIN_PASSWORD`/`SUPERADMIN_JWT_SECRET`
+    configurados en Render (login retornaba 401 siempre) — se generaron y
+    guardaron en el env group compartido. Ambos confirmados con login real
+    contra la API en producción.
+- **Sin registrar hasta ahora (commits 2026-10-01 a 2026-10-07, previos a
+  este incidente):** módulo de Caja (cobro en sede, venta de productos,
+  gastos, cobro con tarjeta, auto-impresión, recibos con número secuencial),
+  pantallas de Tienda/Pagos, página pública de Academia (`/academia`, con la
+  tabla de horarios que ahora alimenta el blackout de arriba), panel interno
+  `/superadmin` de monitoreo (detalle BD/Redis, log de warn/error), y 4 fixes
+  de `npm audit` (bcrypt, uuid vía exceljs, shell-quote vía concurrently,
+  regla de Dependabot para no proponer majors sueltos de
+  `@nestjs/platform-express`/`testing`). Ninguno tiene pendientes conocidos;
+  se listan aquí solo porque nunca se anotaron en este archivo.
+
 ## Resuelto (2026-09-07)
 
 - **Next.js 14 → 15** (sección 4.1) — migrado a `next`/`eslint-config-next`
@@ -439,15 +504,32 @@ corregida) y `MANUAL_USUARIO.md` apunta a la ruta real `/login` (no
 
 ---
 
-## 9. CI/CD
+## 9. CI/CD ⚠️ (parcialmente resuelto — hosting definido, pipeline formal sigue sin existir)
 
-- La imagen Docker se construye en CI (`build-imagen-docker` job) pero
-  **no se despliega** — el hosting definitivo no está definido.
-- No hay pipeline de deploy a staging/producción.
-- Los k6 load tests no corren en CI (ver sección 2.2).
+- **Hosting ya está decidido y en vivo** (ver DEPLOYMENT_GUIDE.md y el
+  incidente de 2026-10-27 arriba): API NestJS + Postgres + Redis en
+  **Render** (servicio `Pro-Futbol-Prueba`, auto-deploy on push a `main`),
+  frontend Next.js en **Vercel** (`profutbol-antigua`, auto-deploy on push).
+  Ninguno de los dos usa el paso `build-imagen-docker` de CI — cada uno
+  construye su propia imagen/build directamente desde el repo. Ese job de
+  CI corre en cada push pero su artefacto **no se usa para nada**; es
+  trabajo muerto o, si se mantiene a propósito como smoke build, vale la
+  pena decirlo en un comentario del workflow.
+- **Riesgo real y ya materializado una vez:** el Postgres de Render es
+  plan **free**, que expira automáticamente a los 30 días sin aviso dentro
+  de la app (solo un mensaje en el dashboard de Render) — causó una caída
+  completa de `/reservar` el 2026-10-17→27 sin que nadie se enterara hasta
+  que un usuario reportó el error. La DB actual (`profutbol-antigua-db-v2`)
+  expira el **2026-11-26**. Antes de esa fecha: subir a plan pago, o migrar
+  a un proveedor Postgres sin expiración (Neon/Supabase vía Vercel
+  Marketplace es la opción más simple dado que Vercel ya está conectado).
+- Los k6 load tests siguen sin correr en CI (ver sección 2.2) — solo manual.
 
-**Para resolver:** definir el proveedor de hosting (Railway, Fly.io, AWS
-ECS, etc.) y agregar el paso de deploy después de `build-imagen-docker`.
+**Para resolver:** (a) decidir upgrade-a-pago vs. migrar la DB antes del
+2026-11-26 — es lo más urgente; (b) decidir si el job `build-imagen-docker`
+se elimina (no se usa) o se conecta a un deploy real; (c) agregar alerta de
+monitoreo que no dependa de que un usuario reporte el sitio caído (Sentry ya
+está integrado — sección 5 — pero no cubre "la DB entera desapareció").
 
 ---
 
@@ -570,5 +652,10 @@ verificación en browser.
 | Gateway SIMULADO no en enum (sección 10.3) | 1 enum | ✅ resuelto (2026-09-13) |
 | Node.js 20 → 22 (sección 4.4) | Docker (2 etapas) + CI + engines + .nvmrc + Vercel dashboard | ✅ resuelto y desplegado (2026-09-24): Vercel en producción confirmado sin errores |
 | Patch/minor deps (sección 4.5) | 9 paquetes, sin migración | ✅ resuelto (2026-09-23): commit `923f918`, 131/131 tests |
+| Caja, Tienda/Pagos, página pública Academia, panel `/superadmin` | Features de negocio (2026-10-01 a 2026-10-07) | ✅ en producción, sin pendientes conocidos (documentado recién 2026-10-27) |
+| Incidente: Postgres free de Render expirado (sección 9) | Causó caída total de `/reservar` por 10 días sin detectar | ✅ resuelto (2026-10-27): nueva DB free, expira otra vez 2026-11-26 — decidir upgrade/migración antes |
+| Blackout de horarios de academia en `/reservar` | Backend (categoriaAcademia) + frontend (bloques negros) + 12 reglas recurrentes reales | ✅ resuelto (2026-10-27): verificado end-to-end, 137/137 tests |
+| Credenciales admin/superadmin | `/superadmin` nunca tuvo password configurado en producción | ✅ resuelto (2026-10-27): generadas, guardadas en Render, verificadas con login real |
+| CI/CD — hosting (sección 9) | Antes: "sin definir". Ahora: Render (API) + Vercel (web), ambos en vivo | ⚠️ hosting resuelto; job `build-imagen-docker` sin uso real, pendiente decidir |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).
