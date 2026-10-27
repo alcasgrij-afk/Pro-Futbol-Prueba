@@ -3,6 +3,7 @@ import { BloqueHorario } from '@profutbol/shared-types';
 export interface RangoOcupado {
   horaInicioMin: number;
   horaFinMin: number;
+  categoriaAcademia?: string; // ej. "Academia U-7"; solo para bloqueos tipo ACADEMIA
 }
 
 export interface ReglasCancha {
@@ -69,14 +70,15 @@ export function calcularBloquesDisponibilidad(
   ) {
     const fin = inicio + duracionBloqueMin;
 
-    const seSolapaConReserva = reservasActivas.some((r) =>
+    const reservaSolapada = reservasActivas.find((r) =>
       seSolapan(inicio, fin, r.horaInicioMin, r.horaFinMin),
     );
 
     bloques.push({
       horaInicio: minutosAHora(inicio),
       horaFin: minutosAHora(fin),
-      disponible: !seSolapaConReserva,
+      disponible: !reservaSolapada,
+      ...(reservaSolapada?.categoriaAcademia ? { categoriaAcademia: reservaSolapada.categoriaAcademia } : {}),
     });
   }
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { TipoCancha, type CanchaDTO } from '@profutbol/shared-types';
 import { hoyISODias } from '../lib/fechas';
 
-type Bloque = { horaInicio: string; horaFin: string; disponible: boolean };
+type Bloque = { horaInicio: string; horaFin: string; disponible: boolean; categoriaAcademia?: string };
 type InfoCancha = { bloques: Bloque[] } | 'error' | undefined;
 export type SlotElegido = { fecha: string; canchaId: string; canchaNombre: string; horaInicio: string; horaFin: string };
 
@@ -106,7 +106,7 @@ export default function WeekDatePicker({
   // con "Cambiar horario"), igual al que ya corre una vez al montar.
   resaltar?: boolean;
 }) {
-  const [canchas, setCanchas] = useState<CanchaDTO[] | null>(null);
+  const [canchas, setCanchas] = useState<CanchaDTO[] | 'error' | null>(null);
   const [porCancha, setPorCancha] = useState<Record<string, InfoCancha>>({});
   const [glowActivo, setGlowActivo] = useState(true);
   const gridsRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -156,7 +156,7 @@ export default function WeekDatePicker({
         if (!cancelado) setCanchas(lista);
       })
       .catch(() => {
-        if (!cancelado) setCanchas([]);
+        if (!cancelado) setCanchas('error');
       });
     return () => {
       cancelado = true;
@@ -180,7 +180,7 @@ export default function WeekDatePicker({
         setPorCancha(nuevo);
       })
       .catch(() => {
-        if (!cancelado && canchas) {
+        if (!cancelado && Array.isArray(canchas)) {
           setPorCancha(Object.fromEntries(canchas.map((c) => [c.id, 'error' as const])));
         }
       });
@@ -228,7 +228,7 @@ export default function WeekDatePicker({
   const puedeAvanzar = !locked && ventanaInicio < DIAS_MAX - DIAS_VISIBLES;
   const tarjetas = Array.from({ length: DIAS_VISIBLES }, (_, i) => ventanaInicio + i);
 
-  const seleccionCancha = selectedSlot ? canchas?.find((c) => c.id === selectedSlot.canchaId) : undefined;
+  const seleccionCancha = selectedSlot && Array.isArray(canchas) ? canchas.find((c) => c.id === selectedSlot.canchaId) : undefined;
   const textoSeleccion =
     diaActivoConfirmado && seleccionCancha && selectedSlot
       ? `${seleccionCancha.nombre} · ${new Date(`${fechaActiva}T12:00:00`).toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' })} · ${selectedSlot.horaInicio}`
@@ -316,6 +316,10 @@ export default function WeekDatePicker({
         <div className="flex flex-col gap-3">
           {canchas === null ? (
             <div className="h-28 rounded-2xl bg-white/10 motion-safe:animate-pulse" aria-hidden />
+          ) : canchas === 'error' ? (
+            <p className="text-[#ffb4a3] text-xs text-center py-4">
+              No pudimos cargar las canchas. Revisá tu conexión o intentá de nuevo en unos minutos.
+            </p>
           ) : (
             canchas.map((c) => {
               const info = porCancha[c.id];
@@ -373,6 +377,25 @@ export default function WeekDatePicker({
                                   title={`${b.horaInicio}–${b.horaFin}: Ya paso`}
                                   className="aspect-square rounded-[9px] border-0 p-0 bg-white/10 cursor-not-allowed"
                                 />
+                              );
+                            }
+                            if (b.categoriaAcademia) {
+                              // Bloqueo fijo de la academia (ver WeekDatePicker.tsx y
+                              // canchas.service.ts): nunca seleccionable, se distingue
+                              // del "no disponible" comun mostrando la categoria.
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  aria-disabled="true"
+                                  disabled
+                                  title={`${b.horaInicio}–${b.horaFin}: ${b.categoriaAcademia}`}
+                                  className="aspect-square rounded-[9px] border-0 p-0 bg-[#0b0f17] grid place-items-center cursor-not-allowed overflow-hidden"
+                                >
+                                  <span className="text-[7px] sm:text-[8px] font-black text-[#d8b32d] leading-none px-0.5 text-center">
+                                    {b.categoriaAcademia.replace(/^Academia\s+/i, '')}
+                                  </span>
+                                </button>
                               );
                             }
                             if (!b.disponible) {
@@ -440,6 +463,9 @@ export default function WeekDatePicker({
           </span>
           <span className="flex items-center gap-2">
             <span className="w-3.5 h-3.5 rounded-[5px] bg-[#b6f15c]" /> Seleccionado
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-3.5 h-3.5 rounded-[5px] bg-[#0b0f17]" /> Academia
           </span>
           <span className="flex items-center gap-1.5 sm:ml-auto sm:pl-4 sm:border-l sm:border-white/10">
             <ClockIcon className="w-3.5 h-3.5" /> Lun–Sáb · 2:00 p.m.–10:00 p.m.

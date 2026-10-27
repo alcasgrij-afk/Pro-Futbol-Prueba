@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EstadoReserva } from '@prisma/client';
+import { EstadoReserva, TipoReserva } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { calcularBloquesDisponibilidad, resolverHorario } from './disponibilidad.util';
+import { calcularBloquesDisponibilidad, resolverHorario, RangoOcupado } from './disponibilidad.util';
 
 // Estados que efectivamente "ocupan" el horario a efectos de disponibilidad.
 const ESTADOS_ACTIVOS: EstadoReserva[] = [
@@ -33,12 +33,12 @@ export class CanchasService {
         fecha: new Date(fecha),
         estado: { in: ESTADOS_ACTIVOS },
       },
-      select: { horaInicioMin: true, horaFinMin: true },
+      select: { horaInicioMin: true, horaFinMin: true, tipo: true, cliente: { select: { nombre: true } } },
     });
 
     const bloques = calcularBloquesDisponibilidad(
       { ...resolverHorario(cancha, fecha), duracionBloqueMin: cancha.duracionBloqueMin },
-      reservasDelDia,
+      reservasDelDia.map(this.aRangoOcupado),
     );
 
     return { canchaId, fecha, bloques: this.filtrarBloquesPasados(bloques, fecha) };
@@ -59,13 +59,13 @@ export class CanchasService {
         fecha: new Date(fecha),
         estado: { in: ESTADOS_ACTIVOS },
       },
-      select: { canchaId: true, horaInicioMin: true, horaFinMin: true },
+      select: { canchaId: true, horaInicioMin: true, horaFinMin: true, tipo: true, cliente: { select: { nombre: true } } },
     });
 
-    const reservasPorCancha = new Map<string, { horaInicioMin: number; horaFinMin: number }[]>();
+    const reservasPorCancha = new Map<string, RangoOcupado[]>();
     for (const r of reservasDelDia) {
       const lista = reservasPorCancha.get(r.canchaId) ?? [];
-      lista.push({ horaInicioMin: r.horaInicioMin, horaFinMin: r.horaFinMin });
+      lista.push(this.aRangoOcupado(r));
       reservasPorCancha.set(r.canchaId, lista);
     }
 
@@ -76,6 +76,22 @@ export class CanchasService {
       );
       return { canchaId: cancha.id, fecha, bloques: this.filtrarBloquesPasados(bloques, fecha) };
     });
+  }
+
+  // Los bloqueos de academia muestran la categoria (guardada como clienteNombre,
+  // ej. "Academia U-7") en el bloque; los demas tipos no exponen el nombre del
+  // cliente aqui (es un horario publico).
+  private aRangoOcupado(r: {
+    horaInicioMin: number;
+    horaFinMin: number;
+    tipo: TipoReserva;
+    cliente: { nombre: string };
+  }): RangoOcupado {
+    return {
+      horaInicioMin: r.horaInicioMin,
+      horaFinMin: r.horaFinMin,
+      ...(r.tipo === TipoReserva.ACADEMIA ? { categoriaAcademia: r.cliente.nombre } : {}),
+    };
   }
 
   private filtrarBloquesPasados(bloques: ReturnType<typeof calcularBloquesDisponibilidad>, fecha: string) {

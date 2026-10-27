@@ -148,6 +148,7 @@ export interface BloqueHorario {
   horaInicio: string; // "18:00"
   horaFin: string; // "19:00"
   disponible: boolean;
+  categoriaAcademia?: string; // ej. "Academia U-7"; solo si el bloqueo es tipo ACADEMIA
 }
 
 export interface DisponibilidadResponse {

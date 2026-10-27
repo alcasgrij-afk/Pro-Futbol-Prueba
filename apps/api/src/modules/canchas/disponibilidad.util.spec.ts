@@ -57,6 +57,15 @@ describe('calcularBloquesDisponibilidad', () => {
     expect(bloques.map((b) => b.disponible)).toEqual([false, true, false]);
   });
 
+  it('incluye categoriaAcademia en el bloque ocupado cuando la reserva la trae', () => {
+    const bloques = calcularBloquesDisponibilidad(reglasEstandar, [
+      { horaInicioMin: 9 * 60, horaFinMin: 10 * 60, categoriaAcademia: 'Academia U-7' },
+    ]);
+    expect(bloques.find((b) => b.horaInicio === '09:00')?.categoriaAcademia).toBe('Academia U-7');
+    // Los bloques libres no traen la propiedad
+    expect(bloques.find((b) => b.horaInicio === '08:00')).not.toHaveProperty('categoriaAcademia');
+  });
+
   it('lanza un error si la duracion del bloque es 0 o negativa', () => {
     expect(() =>
       calcularBloquesDisponibilidad({ ...reglasEstandar, duracionBloqueMin: 0 }, []),
