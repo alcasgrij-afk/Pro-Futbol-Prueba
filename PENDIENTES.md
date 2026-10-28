@@ -9,6 +9,36 @@ para que el equipo decida qué atacar y cuándo.
 > en `.claude/settings.json`) — no dejarlo acumular drift como pasó entre
 > 2026-09-24 y 2026-10-27 (11 commits de features/infra sin registrar aquí).
 
+## Triaje de PRs de Dependabot (2026-10-28)
+
+Tres PRs nuevos de Dependabot — ninguno llegó a `main`, es triaje de PRs
+abiertos, no un incidente de producción:
+
+- **PR #12** (`@nestjs/common` 11.2.8 → 12.2.0) y **PR #14**
+  (`@nestjs/schematics` 11.1.0 → 12.0.10) muestran que el bloqueo de
+  majors sueltos en `.github/dependabot.yml` (sección 3.4) **no cubre
+  `@nestjs/common`/`@nestjs/core`** — solo `platform-express`/`testing`.
+  **PR #12 cerrado**: subir `common` solo mientras `core`/
+  `platform-express` siguen en v11 rompe el acople interno de NestJS
+  (mismo problema que el bloqueo ya existente), y el `overrides` de la raíz
+  (`package.json`) fija `@nestjs/common` a `^11.2.5` de todas formas — el
+  cambio quedaría inerte aunque se mergeara. NestJS 11→12 sigue siendo un
+  bump coordinado de todo `@nestjs/*` (sección 4.5), no paquete por paquete.
+- **PR #13** (`@typescript-eslint/parser` 7.18.0 → 8.72.0) **cerrado**:
+  sube el parser dejando `@typescript-eslint/eslint-plugin` en v7 —
+  deben moverse juntos. v8 además pide flat config, parte del major
+  ESLint 8→10 ya diferido como trabajo coordinado (sección 4.5).
+- **PR #14** (`@nestjs/schematics` 11.1.0 → 12.0.10) — **sigue abierto,
+  seguro de mergear cuando convenga**: es tooling de solo desarrollo
+  (`nest generate`, sin acople en runtime con `common`/`core`), y de hecho
+  corrige una inconsistencia que ya existía (`@nestjs/cli` está en
+  `^12.0.1` desde hace tiempo mientras `schematics` seguía en `^11.0.0`).
+- **Para resolver el problema de raíz** (no solo este triaje puntual):
+  ampliar el `ignore` de `.github/dependabot.yml` para bloquear majors
+  sueltos también de `@nestjs/common`/`@nestjs/core`, y de
+  `@typescript-eslint/parser` (agruparlo con el major de ESLint) — no
+  hecho todavía, pendiente de que se pida explícitamente.
+
 ## Resuelto (2026-10-28, incidente: Vercel fallaba en los últimos 3 deploys)
 
 - **Síntoma:** las últimas 3 producciones a Vercel (`9d15a14`, `1728cec`,
