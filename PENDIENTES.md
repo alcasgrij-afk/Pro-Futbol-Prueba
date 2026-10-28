@@ -9,6 +9,79 @@ para que el equipo decida qué atacar y cuándo.
 > en `.claude/settings.json`) — no dejarlo acumular drift como pasó entre
 > 2026-09-24 y 2026-10-27 (11 commits de features/infra sin registrar aquí).
 
+## Resuelto (2026-10-27, cobro rápido en /pagos)
+
+- **`/admin/pagos` pasó de ser solo lectura a tener un flujo de cobro propio.**
+  Antes solo existía la bitácora de `Pago` + CRUD de `Gasto`; no había manera
+  de registrar un cobro que no fuera una reserva (Caja) o una venta de tienda.
+  Ahora hay un modal **"Nuevo cobro"** en 3 pasos (concepto → detalle → método
+  + resumen explícito antes de cobrar) para todo lo que **no** es una reserva:
+  - **Mensualidad de academia**: selector de alumno (solo visible para este
+    concepto, se limpia al cambiar de concepto), lista de mensualidades
+    pendientes del mes elegido, monto de solo lectura. Delega en el endpoint
+    ya existente `cobrarEnSede` de `MensualidadesService` — cero lógica de
+    cobro duplicada. El pago queda atado al alumno: la ficha de la mensualidad
+    ahora expone `pagadaEn`/`numeroRecibo`/`metodoPago` (antes solo
+    `pagada: boolean`), y la bitácora de `/payments` resuelve el nombre del
+    alumno en un solo query batch (sin N+1).
+  - **Servicio de arbitraje**: nuevo modelo `Arbitro` (nombre, teléfono
+    opcional, activo) — decisión explícita del usuario de que fuera un
+    registro real vinculado, no solo una categoría de texto libre. Se puede
+    crear uno nuevo desde el mismo modal ("+ Nuevo árbitro").
+  - **Conceptos de catálogo** ("Pago especial" + 2 placeholders "Otro 1/2 (por
+    definir)"): nuevo modelo `ConceptoPago`, editable desde una pestaña nueva
+    **"Catálogos"** en `/admin/pagos` — el admin renombra los placeholders
+    **sin deploy**. El nombre se snapshotea en `Pago.conceptoSnapshot` al
+    momento del cobro (mismo patrón que `VentaItem.nombreSnapshot`): renombrar
+    o desactivar un concepto después no corrompe recibos ya emitidos.
+  - Todos los cobros nuevos reusan la secuencia atómica existente de recibo
+    (`REC-{año}-{000000}`, `PagosService.generarNumeroRecibo`) — una sola
+    serie para todos los tipos de pago, con auto-impresión igual que Caja.
+  - **Exclusividad explícita Caja↔Pagos** (decisión del usuario): reservas se
+    cobran solo desde Caja; el modal de `/pagos` no ofrece la opción de
+    reserva. Ningún cruce entre los dos flujos de entrada.
+- **Pago parcial (abono) de reservas** — nuevo en `CobrarSedeModal` (Caja):
+  checkbox "Abono" al cobrar en sede permite cobrar menos del precio total;
+  la reserva queda **CONFIRMADA** igual (apartada) y el saldo se cobra
+  después desde el mismo menú de clic derecho ("Cobrar saldo (Q X)"). El
+  saldo se calcula en vivo (`PagosService.saldoReserva`, suma de `Pago`
+  COMPLETADO contra `precioTotalQ` — sin columna `montoPagado` que se pueda
+  desincronizar) y la grilla de Caja muestra un badge "Debe Q150 de Q300" en
+  los bloques con saldo pendiente. Decisión explícita: **sin vencimiento
+  automático ni penalidad** sobre el saldo (si el negocio lo necesita más
+  adelante, ver tabla de simplificaciones en sección 6).
+- **Caso especial de clima en Caja** — nueva entrada en el menú de clic
+  derecho ("Caso especial: clima") con dos salidas, ninguna con penalidad:
+  cancelar dejando `motivoCancelacion: CLIMA` registrado (nuevo enum, nuevo
+  campo en `Reserva`; cancelar sin motivo sigue default a `OTRO`, cambio
+  retrocompatible) o reprogramar a otra fecha (reusa el `ModificarReservaModal`
+  que ya existía, sin lógica nueva). Sin reembolso automático — no existe esa
+  lógica en ningún módulo de la app.
+- **Cierre de caja (día/semana/mes) en `/admin/reportes`** — un solo endpoint
+  parametrizado por rango (`ReportesService.cierre`, sin tabla de snapshots:
+  todo se calcula en vivo sobre `Pago`/`Gasto`/`Venta`, mismo criterio que el
+  reporte de `ingresos` existente) con ingresos por categoría y método,
+  gastos por categoría, venta de tienda (desglose informativo — **no** se
+  suma de nuevo al neto, ya está dentro de ingresos) y neto. Exportable a
+  Excel/PDF (reusa `ExcelExportService`/`PdfExportService`) y **compartible**
+  con un botón "Compartir" (`apps/web/lib/compartir.ts`): Web Share API con
+  archivo real cuando el dispositivo lo soporta (WhatsApp/correo nativos en
+  móvil), fallback a descarga + `wa.me` con texto en escritorio. Decisión
+  explícita del usuario: **sin gateway de WhatsApp Business ni SMTP
+  backend** — el envío lo hace la persona desde su propio dispositivo (ver
+  sección 6, nueva fila).
+- **Verificado contra DB real** (Docker local, no solo mocks de los specs):
+  migración aplicada limpia (`20261027210000_add_pagos_manuales_arbitros_abonos_clima`),
+  catálogo sembrado (3 filas), smoke test manual end-to-end de cada flujo
+  nuevo vía HTTP directo (recibo consecutivo entre tipos, abono→saldo→cobro
+  del resto, rechazo de abono que excede el saldo, cancelación por clima con
+  motivo persistido, mensualidad atada al alumno con fecha/método/recibo,
+  totales del cierre reconciliados con lo cobrado, export Excel/PDF con
+  magic bytes válidos). Datos de prueba limpiados de la DB antes de
+  commitear. **153/153 tests** (unit, +16 nuevos: matemática de abono/saldo,
+  rechazo de sobre-pago, concepto/árbitro inactivo, no-doble-conteo en el
+  cierre), lint limpio, build de ambas apps limpio. Commit `1728cec`.
+
 ## Resuelto (2026-10-27)
 
 - **Incidente de producción: base de datos gratuita expirada** — el Postgres
@@ -377,6 +450,15 @@ El residuo real (prod, `--omit=dev`):
 limpio — diferido. **Nota:** `Dependabot` (sección 3.4, alerts confirmadas
 activas) repetirá este análisis semanalmente.
 
+**Nota sobre un conteo transitorio raro:** un push anterior mostró
+momentáneamente "22 vulnerabilidades (2 críticas)" en el mensaje de GitHub,
+contradiciendo el `npm audit` local (0 críticas) hecho sobre el mismo commit
+— no se pudo confirmar la causa en el momento (sin `gh` CLI disponible). El
+push del commit siguiente (`1728cec`, 2026-10-27) ya mostró el conteo
+correcto y consistente con lo local (**7**, igual a la tabla de arriba) —
+fue un conteo transitorio del lado de GitHub (rescaneo asíncrono tras el
+push anterior), no un hallazgo real ni algo que requiera acción.
+
 ---
 
 ### 4.4 Node.js 20 → 22 ✅ (resuelto 2026-09-23, local + Docker)
@@ -495,6 +577,8 @@ un techo conocido:
 | `chat.service.ts` | `esCancelacion` detecta intención de cancelar con match exacto contra 4 palabras fijas (`cancelar/cancela/salir/stop`), sin fuzzy/stemming. (El matcher de nombre de cancha, `resolverCanchaPorTexto`/`normalizar`, ya hace NFD + remueve acentos + colapsa espacios — no entra en esta simplificación) | Agregar stemming/lematización a `esCancelacion` si se necesita matching más robusto de la intención de cancelar |
 | `pagos/gateways/gateway.service.ts` | Llamada HTTP real a pasarela de pago no implementada (stub) | Implementar HTTP real cuando se defina la integración con BAC/NeoNet |
 | `torneos/fixture.service.ts` | Rondas siguientes de eliminación directa se arman manualmente — **resuelto 2026-09-13**: `generarRondaSiguiente` arma rondas 2+ con los ganadores; empates requieren `penalesGanadorId` (selector en el panel admin), sino responde `penalesPendientes` | Si el desempate por penales necesita marcador numérico (goles de penales), guardarlo además del ganador |
+| `apps/web/lib/compartir.ts` (cierre de caja) | Envío por WhatsApp/correo es manual (Web Share API con archivo real en móvil, descarga + link `wa.me` de texto en escritorio) — sin gateway de WhatsApp Business API ni SMTP backend (2026-10-27) | Agregar envío automático desde el backend (job + credenciales de WhatsApp Business API / SMTP) si el negocio necesita que el cierre salga solo, sin que alguien lo comparta a mano |
+| `reservas.service.ts` (abono de reserva) | El saldo pendiente de un abono no tiene vencimiento ni penalidad automática — se cobra cuando el cliente llegue, decisión explícita (2026-10-27) | Si se necesita liberar la reserva por saldo no pagado a tiempo, agregar un job de BullMQ análogo al de liberación por timeout de pago completo |
 
 ---
 
@@ -669,5 +753,6 @@ verificación en browser.
 | Credenciales admin/superadmin | `/superadmin` nunca tuvo password configurado en producción | ✅ resuelto (2026-10-27): generadas, guardadas en Render, verificadas con login real |
 | CI/CD — hosting (sección 9) | Antes: "sin definir". Ahora: Render (API) + Vercel (web), ambos en vivo | ⚠️ hosting resuelto; `build-imagen-docker` eliminado (2026-10-27, no se usaba); sigue pendiente alerta de monitoreo para caída total de DB |
 | Dependabot alerts (sección 3.4) | Detección de vulnerabilidades en transitivas vía GitHub Security | ✅ confirmado activo (2026-10-27) |
+| Cobro rápido en `/pagos` (mensualidad/árbitro/conceptos), abono de reservas, caso clima en Caja, cierre de caja | Modal de 3 pasos + recibo auto-numerado; nuevos modelos `Arbitro`/`ConceptoPago`; saldo en vivo sin columna duplicada; reporte día/semana/mes exportable y compartible | ✅ resuelto (2026-10-27, commit `1728cec`): verificado contra DB real, 153/153 tests, ver sección nueva "Resuelto (2026-10-27, cobro rápido en /pagos)" |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).
