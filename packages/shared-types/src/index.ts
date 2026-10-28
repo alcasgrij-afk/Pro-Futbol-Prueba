@@ -169,6 +169,7 @@ export interface ClienteDTO {
   nombre: string;
   telefono: string;
   email?: string | null;
+  dpi?: string | null;
   activo: boolean;
   creadoEn: string;
 }
@@ -192,6 +193,7 @@ export interface ActualizarClienteInput {
   nombre?: string;
   telefono?: string;
   email?: string;
+  dpi?: string;
 }
 
 export interface ReservaDTO {

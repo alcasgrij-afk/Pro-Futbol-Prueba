@@ -113,7 +113,7 @@ export class ClientesService {
     });
   }
 
-  async actualizar(id: string, dto: { nombre?: string; telefono?: string; email?: string }) {
+  async actualizar(id: string, dto: { nombre?: string; telefono?: string; email?: string; dpi?: string }) {
     await this.obtenerPorId(id);
     try {
       return await this.prisma.cliente.update({
@@ -122,11 +122,13 @@ export class ClientesService {
           ...(dto.nombre !== undefined ? { nombre: dto.nombre } : {}),
           ...(dto.telefono !== undefined ? { telefono: this.normalizarTelefono(dto.telefono) } : {}),
           ...(dto.email !== undefined ? { email: dto.email } : {}),
+          ...(dto.dpi !== undefined ? { dpi: dto.dpi } : {}),
         },
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new BadRequestException('Ya existe otro cliente con ese telefono.');
+        const campo = (err.meta?.target as string[] | undefined)?.includes('dpi') ? 'DPI' : 'telefono';
+        throw new BadRequestException(`Ya existe otro cliente con ese ${campo}.`);
       }
       throw err;
     }

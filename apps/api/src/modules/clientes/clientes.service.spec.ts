@@ -109,9 +109,16 @@ describe('ClientesService — admin (listar/actualizar/desactivar/VIP)', () => {
 
     it('traduce un telefono duplicado (P2002) a BadRequestException', async () => {
       prisma.cliente.update.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError('Unique constraint', { code: 'P2002', clientVersion: 'x' }),
+        new Prisma.PrismaClientKnownRequestError('Unique constraint', { code: 'P2002', clientVersion: 'x', meta: { target: ['telefono'] } }),
       );
       await expect(service.actualizar('c1', { telefono: '55551234' })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('traduce un DPI duplicado (P2002) a BadRequestException con mensaje de DPI', async () => {
+      prisma.cliente.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint', { code: 'P2002', clientVersion: 'x', meta: { target: ['dpi'] } }),
+      );
+      await expect(service.actualizar('c1', { dpi: '1234567890123' })).rejects.toThrow('Ya existe otro cliente con ese DPI.');
     });
 
     it('404 si el cliente no existe', async () => {

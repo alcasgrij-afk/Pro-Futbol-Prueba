@@ -54,9 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:text-navy focus:px-3 focus:py-2 rounded">Saltar al contenido</a>
       <div className="min-h-screen md:flex bg-[#eef2f8]">
         {/* Sidebar de escritorio */}
-        <aside className="hidden md:flex md:flex-col md:w-64 md:shrink-0 bg-navy text-white relative overflow-hidden print:hidden">
-          <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-white/5" aria-hidden="true" />
-          <div className="absolute bottom-24 left-8 w-24 h-24 rounded-full bg-white/5" aria-hidden="true" />
+        <aside className="hidden md:flex md:flex-col md:w-64 md:shrink-0 bg-white text-navy border-r border-gray-200 relative overflow-hidden print:hidden">
           <div className="relative z-10 flex flex-col h-full">
             <div className="px-6 pt-8 pb-6">
               <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={453} height={162} className="h-14 w-auto" priority />
@@ -69,7 +67,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     key={href}
                     href={href}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                      activo ? 'bg-white text-navy shadow-sm' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                      activo ? 'bg-navy text-white shadow-sm' : 'text-navy/60 hover:bg-navy/5 hover:text-navy'
                     }`}
                   >
                     <Icon size={20} weight={activo ? 'fill' : 'regular'} aria-hidden="true" />
@@ -78,15 +76,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 );
               })}
             </nav>
-            <div className="px-6 py-5 text-xs text-white/50 border-t border-white/10">
-              <p className="font-semibold text-white/70">Pro Fútbol Antigua</p>
+            <div className="px-6 py-5 text-xs text-gray-400 border-t border-gray-200">
+              <p className="font-semibold text-navy/70">Pro Fútbol Antigua</p>
               <p>Panel de Administración</p>
             </div>
           </div>
         </aside>
 
         {/* Nav superior en movil (la sidebar solo aparece desde md) */}
-        <header className="md:hidden bg-navy text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <header className="md:hidden bg-white text-navy border-b border-gray-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <Link href="/admin" className="flex items-center gap-2 font-bold">
             <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={453} height={162} className="h-7 w-auto" />
           </Link>
@@ -95,7 +93,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 key={href}
                 href={href}
-                className={esActivo(pathname, href, exacto) ? 'underline underline-offset-4 text-yellow-300 shrink-0' : 'text-white/80 hover:text-white shrink-0'}
+                className={esActivo(pathname, href, exacto) ? 'underline underline-offset-4 text-navy font-bold shrink-0' : 'text-navy/60 hover:text-navy shrink-0'}
               >
                 {label}
               </Link>

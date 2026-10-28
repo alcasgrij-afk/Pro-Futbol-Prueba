@@ -6,7 +6,7 @@ import { ApiError, api } from '../../../lib/api-client';
 import ConfirmarModal from '../../../components/ConfirmarModal';
 import Skeleton from '../../../components/Skeleton';
 
-const FORM_VACIO = { nombre: '', telefono: '', email: '' };
+const FORM_VACIO = { nombre: '', telefono: '', email: '', dpi: '' };
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<ClienteListadoDTO[]>([]);
@@ -42,7 +42,7 @@ export default function ClientesPage() {
 
   function iniciarEdicion(c: ClienteListadoDTO) {
     setEditando(c);
-    setForm({ nombre: c.nombre, telefono: c.telefono, email: c.email ?? '' });
+    setForm({ nombre: c.nombre, telefono: c.telefono, email: c.email ?? '', dpi: c.dpi ?? '' });
     setError(null);
   }
 
@@ -61,6 +61,7 @@ export default function ClientesPage() {
         nombre: form.nombre.trim(),
         telefono: form.telefono.trim(),
         email: form.email.trim() || undefined,
+        dpi: form.dpi.trim() || undefined,
       });
       cancelarForm();
       cargar();
@@ -169,6 +170,14 @@ export default function ClientesPage() {
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+            />
+          </label>
+          <label className="block text-xs font-medium text-gray-600">
+            DPI (opcional)
+            <input
+              value={form.dpi}
+              onChange={(e) => setForm({ ...form, dpi: e.target.value })}
               className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
             />
           </label>

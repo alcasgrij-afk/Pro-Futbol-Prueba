@@ -140,6 +140,7 @@ model Cliente {
   nombre    String
   telefono  String    @unique
   email     String?
+  dpi       String?   @unique
   activo    Boolean   @default(true)
   creadoEn  DateTime  @default(now())
   reservas  Reserva[]

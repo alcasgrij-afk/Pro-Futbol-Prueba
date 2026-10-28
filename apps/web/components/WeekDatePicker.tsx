@@ -407,10 +407,14 @@ export default function WeekDatePicker({
                                   disabled={locked}
                                   title={`${b.horaInicio}–${b.horaFin}: No disponible`}
                                   onClick={locked ? undefined : () => tocarNoDisponible(key)}
-                                  className={`aspect-square rounded-[9px] border-0 p-0 transition-colors duration-300 ${
+                                  className={`aspect-square rounded-[9px] border-0 p-0 grid place-items-center overflow-hidden transition-colors duration-300 ${
                                     flashKey === key ? 'bg-gray-400' : 'bg-[#ff765f]'
                                   } ${locked ? 'opacity-30 cursor-not-allowed' : ''}`}
-                                />
+                                >
+                                  <span className="text-[7px] sm:text-[8px] font-black text-white leading-none px-0.5 text-center">
+                                    No disponible
+                                  </span>
+                                </button>
                               );
                             }
                             const esElegido = diaActivoConfirmado && selectedSlot?.canchaId === c.id && selectedSlot.horaInicio === b.horaInicio;
