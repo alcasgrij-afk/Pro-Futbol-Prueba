@@ -156,7 +156,7 @@ export default function ReservasPage() {
     <div className="space-y-6">
       {/* --- Encabezado y selector de fecha --- */}
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-navy">Reservas del dia</h1>
+        <h1 className="text-lg font-bold text-navy">Resumen diario</h1>
         <input
           type="date"
           aria-label="Fecha de reservas"

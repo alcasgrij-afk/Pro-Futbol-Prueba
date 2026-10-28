@@ -14,9 +14,10 @@
  *    nunca hoy ni los proximos dias, para no bloquear horarios reales que un
  *    cliente pueda estar por reservar.
  * Para borrar todo: buscar "Demo - " en el panel admin (clientes, alumnos,
- * equipos) y eliminar desde ahi, o filtrar por esos ids en la base de datos.
+ * equipos, productos) y eliminar desde ahi, o filtrar por esos ids en la
+ * base de datos (las ventas demo usan el prefijo "demo-venta-" en su id).
  */
-import { PrismaClient, EstadoReserva, FormaPago, EstadoPago, GatewayPago, TipoPagoReferencia, FormatoTorneo, EstadoTorneo } from '@prisma/client';
+import { PrismaClient, EstadoReserva, FormaPago, EstadoPago, GatewayPago, TipoPagoReferencia, FormatoTorneo, EstadoTorneo, ProductoCategoria } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -245,13 +246,13 @@ async function main() {
 
   // ---- Academia (Fase 4) ----
   const alumnosData = [
-    { id: 'demo-alumno-1', nombre: 'Demo - Sofía Morales', fechaNacimiento: '2016-03-10', categoria: 'Sub-12', encargadoNombre: 'Demo - Carla Morales', encargadoTelefono: '50093001' },
-    { id: 'demo-alumno-2', nombre: 'Demo - Diego Set', fechaNacimiento: '2014-02-01', categoria: 'Sub-14', encargadoNombre: 'Demo - Hugo Set', encargadoTelefono: '50093002' },
-    { id: 'demo-alumno-3', nombre: 'Demo - Valeria Coy', fechaNacimiento: '2011-05-04', categoria: 'Sub-16', encargadoNombre: 'Demo - Ingrid Coy', encargadoTelefono: '50093003' },
-    { id: 'demo-alumno-4', nombre: 'Demo - Emilio Rax', fechaNacimiento: '2017-01-15', categoria: 'Sub-10', encargadoNombre: 'Demo - Walter Rax', encargadoTelefono: '50093004' },
-    { id: 'demo-alumno-5', nombre: 'Demo - Ana Xoc', fechaNacimiento: '2019-06-20', categoria: 'Sub-8', encargadoNombre: 'Demo - Miriam Xoc', encargadoTelefono: '50093005' },
-    { id: 'demo-alumno-6', nombre: 'Demo - Brandon Cotí', fechaNacimiento: '2012-11-02', categoria: 'Sub-16', encargadoNombre: 'Demo - Elvira Cotí', encargadoTelefono: '50093006' },
-    { id: 'demo-alumno-7', nombre: 'Demo - Katherin Ixcot', fechaNacimiento: '2009-08-18', categoria: 'Sub-18', encargadoNombre: 'Demo - Roberto Ixcot', encargadoTelefono: '50093007' },
+    { id: 'demo-alumno-1', nombres: 'Demo - Sofía Morales', fechaNacimiento: '2016-03-10', categoria: 'Sub-12', encargadoNombre: 'Demo - Carla Morales', encargadoTelefono: '50093001' },
+    { id: 'demo-alumno-2', nombres: 'Demo - Diego Set', fechaNacimiento: '2014-02-01', categoria: 'Sub-14', encargadoNombre: 'Demo - Hugo Set', encargadoTelefono: '50093002' },
+    { id: 'demo-alumno-3', nombres: 'Demo - Valeria Coy', fechaNacimiento: '2011-05-04', categoria: 'Sub-16', encargadoNombre: 'Demo - Ingrid Coy', encargadoTelefono: '50093003' },
+    { id: 'demo-alumno-4', nombres: 'Demo - Emilio Rax', fechaNacimiento: '2017-01-15', categoria: 'Sub-10', encargadoNombre: 'Demo - Walter Rax', encargadoTelefono: '50093004' },
+    { id: 'demo-alumno-5', nombres: 'Demo - Ana Xoc', fechaNacimiento: '2019-06-20', categoria: 'Sub-8', encargadoNombre: 'Demo - Miriam Xoc', encargadoTelefono: '50093005' },
+    { id: 'demo-alumno-6', nombres: 'Demo - Brandon Cotí', fechaNacimiento: '2012-11-02', categoria: 'Sub-16', encargadoNombre: 'Demo - Elvira Cotí', encargadoTelefono: '50093006' },
+    { id: 'demo-alumno-7', nombres: 'Demo - Katherin Ixcot', fechaNacimiento: '2009-08-18', categoria: 'Sub-18', encargadoNombre: 'Demo - Roberto Ixcot', encargadoTelefono: '50093007' },
   ];
   for (const a of alumnosData) {
     await prisma.alumno.upsert({
@@ -300,11 +301,67 @@ async function main() {
     }
   }
 
+  // ---- Tienda (Fase 6): productos + ventas con sus pagos ----
+  const productosData = [
+    { id: 'demo-producto-1', nombre: 'Demo - Agua pura 600ml', categoria: ProductoCategoria.TIENDA, precioQ: 10 },
+    { id: 'demo-producto-2', nombre: 'Demo - Bebida isotónica', categoria: ProductoCategoria.TIENDA, precioQ: 15 },
+    { id: 'demo-producto-3', nombre: 'Demo - Balón fútbol #5', categoria: ProductoCategoria.TIENDA, precioQ: 180 },
+    { id: 'demo-producto-4', nombre: 'Demo - Guantes de portero', categoria: ProductoCategoria.TIENDA, precioQ: 220 },
+    { id: 'demo-producto-5', nombre: 'Demo - Papitas', categoria: ProductoCategoria.TIENDA, precioQ: 8 },
+  ];
+  const precioProducto = new Map(productosData.map((p) => [p.id, p.precioQ]));
+  for (const p of productosData) {
+    await prisma.producto.upsert({ where: { id: p.id }, update: {}, create: p });
+  }
+
+  const ventasData = [
+    { id: 'demo-venta-1', clienteId: 'demo-cliente-1', fecha: '2026-09-03T18:30:00', items: [{ productoId: 'demo-producto-1', cantidad: 2 }, { productoId: 'demo-producto-5', cantidad: 1 }] },
+    { id: 'demo-venta-2', clienteId: null, fecha: '2026-09-04T19:30:00', items: [{ productoId: 'demo-producto-2', cantidad: 3 }] },
+    { id: 'demo-venta-3', clienteId: 'demo-cliente-3', fecha: '2026-09-06T20:15:00', items: [{ productoId: 'demo-producto-3', cantidad: 1 }] },
+    { id: 'demo-venta-4', clienteId: null, fecha: '2026-09-08T17:20:00', items: [{ productoId: 'demo-producto-1', cantidad: 1 }, { productoId: 'demo-producto-2', cantidad: 1 }] },
+    { id: 'demo-venta-5', clienteId: 'demo-cliente-6', fecha: '2026-09-11T18:30:00', items: [{ productoId: 'demo-producto-4', cantidad: 1 }] },
+    { id: 'demo-venta-6', clienteId: null, fecha: '2026-09-15T20:30:00', items: [{ productoId: 'demo-producto-5', cantidad: 2 }, { productoId: 'demo-producto-1', cantidad: 2 }] },
+    { id: 'demo-venta-7', clienteId: 'demo-cliente-7', fecha: '2026-09-01T17:15:00', items: [{ productoId: 'demo-producto-2', cantidad: 2 }] },
+    { id: 'demo-venta-8', clienteId: 'demo-cliente-8', fecha: '2026-09-05T19:20:00', items: [{ productoId: 'demo-producto-3', cantidad: 1 }, { productoId: 'demo-producto-1', cantidad: 1 }] },
+  ];
+  for (const v of ventasData) {
+    const montoTotalQ = v.items.reduce((suma, it) => suma + precioProducto.get(it.productoId)! * it.cantidad, 0);
+    const creadoEn = new Date(v.fecha);
+    await prisma.venta.upsert({
+      where: { id: v.id },
+      update: {},
+      create: { id: v.id, clienteId: v.clienteId, montoTotalQ, creadoEn },
+    });
+    for (const [i, it] of v.items.entries()) {
+      const precioUnitarioQ = precioProducto.get(it.productoId)!;
+      const producto = productosData.find((p) => p.id === it.productoId)!;
+      await prisma.ventaItem.upsert({
+        where: { id: `${v.id}-item-${i + 1}` },
+        update: {},
+        create: {
+          id: `${v.id}-item-${i + 1}`, ventaId: v.id, productoId: it.productoId,
+          nombreSnapshot: producto.nombre, cantidad: it.cantidad,
+          precioUnitarioQ, subtotalQ: precioUnitarioQ * it.cantidad,
+        },
+      });
+    }
+    await prisma.pago.upsert({
+      where: { id: `${v.id}-pago` },
+      update: {},
+      create: {
+        id: `${v.id}-pago`, tipoReferencia: TipoPagoReferencia.VENTA, referenciaId: v.id,
+        gateway: GatewayPago.EFECTIVO, montoQ: montoTotalQ, estado: EstadoPago.COMPLETADO,
+        creadoEn, confirmadoEn: creadoEn,
+      },
+    });
+  }
+
   console.log('Listo:');
   console.log(`  - ${clientesData.length} clientes demo`);
   console.log(`  - ${reservas.length} reservas demo (+ pagos)`);
   console.log(`  - 1 torneo demo con ${equiposData.length} equipos y ${partidosData.length} partidos`);
   console.log(`  - ${alumnosData.length} alumnos demo con mensualidades y asistencia`);
+  console.log(`  - ${productosData.length} productos demo y ${ventasData.length} ventas de tienda (+ pagos)`);
 }
 
 main()

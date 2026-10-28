@@ -233,7 +233,7 @@ export default function CajaPage() {
         print:block (ver ReciboImprimible). */}
     <div className="space-y-4 -mx-6 px-6 max-w-none print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-bold text-navy">Caja — Cobro en sede</h1>
+        <h1 className="text-lg font-bold text-navy">Reservas — Cobro en sede</h1>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setBloqueoModal(TipoReserva.ESPECIAL)}

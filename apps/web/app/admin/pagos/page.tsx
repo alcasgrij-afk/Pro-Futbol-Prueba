@@ -99,7 +99,7 @@ function PagosTab() {
             onClick={() => setNuevoCobro(true)}
             className="min-h-11 px-4 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700"
           >
-            + Nuevo cobro
+            Nuevo Pago
           </button>
           <input type="date" aria-label="Desde" value={desde} onChange={(e) => setDesde(e.target.value)} className="min-h-11 rounded-md border border-gray-500 px-3 text-sm" />
           <span className="text-sm text-gray-500">a</span>

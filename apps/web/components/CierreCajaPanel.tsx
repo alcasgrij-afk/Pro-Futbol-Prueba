@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { WhatsappLogo } from '@phosphor-icons/react';
 import { GastoCategoria, type ReporteCierreDTO } from '@profutbol/shared-types';
 import { api, ApiError } from '../lib/api-client';
 import { hoyISO, rangoMes, rangoSemana } from '../lib/fechas';
@@ -151,8 +152,9 @@ export default function CierreCajaPanel() {
           <button
             onClick={compartir}
             disabled={!!ocupado}
-            className="min-h-11 px-4 text-xs font-bold rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+            className="min-h-11 px-4 flex items-center gap-1.5 text-xs font-bold rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
           >
+            <WhatsappLogo size={16} weight="fill" />
             {ocupado === 'compartir' ? 'Preparando...' : 'Compartir'}
           </button>
         </div>

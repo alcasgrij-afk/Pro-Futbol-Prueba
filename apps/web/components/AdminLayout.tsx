@@ -10,8 +10,8 @@ import { borrarToken, obtenerToken } from '../lib/api-client';
 
 const NAV = [
   { href: '/admin', label: 'Inicio', icon: House, exacto: true },
-  { href: '/reservas', label: 'Reservas', icon: CalendarBlank, exacto: false },
-  { href: '/admin/caja', label: 'Caja', icon: Wallet, exacto: true },
+  { href: '/reservas', label: 'Resumen Diario', icon: CalendarBlank, exacto: false },
+  { href: '/admin/caja', label: 'Reservas', icon: Wallet, exacto: true },
   { href: '/admin/caja/productos', label: 'Tienda', icon: Storefront, exacto: false },
   { href: '/admin/pagos', label: 'Pagos', icon: CreditCard, exacto: false },
   { href: '/admin/clientes', label: 'Clientes', icon: Users, exacto: false },
