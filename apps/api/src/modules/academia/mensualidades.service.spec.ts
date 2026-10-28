@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { TipoPagoReferencia } from '@profutbol/shared-types';
+import { GatewayPago, TipoPagoReferencia } from '@profutbol/shared-types';
 import { MensualidadesService } from './mensualidades.service';
 
 describe('MensualidadesService', () => {
@@ -24,6 +24,8 @@ describe('MensualidadesService', () => {
       crearPagoMensualidad: jest.fn().mockResolvedValue({ paymentId: 'pago-1', redirectUrl: null }),
       estaPagada: jest.fn().mockResolvedValue(false),
       obtenerPagadas: jest.fn().mockResolvedValue(new Set<string>()),
+      obtenerPagosPorReferencia: jest.fn().mockResolvedValue(new Map()),
+      cobrarEfectivo: jest.fn().mockResolvedValue({ paymentId: 'pago-sede', numeroRecibo: 'REC-2026-000001' }),
     };
     const config = new ConfigService({ ACADEMIA_MENSUALIDAD_Q: 150 });
     service = new MensualidadesService(prisma, pagosService, config);
@@ -93,15 +95,45 @@ describe('MensualidadesService', () => {
         { id: 'm1', alumnoId: 'alumno-1', montoQ: '150' },
         { id: 'm2', alumnoId: 'alumno-2', montoQ: 150 },
       ]);
-      pagosService.obtenerPagadas.mockResolvedValue(new Set(['m1']));
+      const confirmadoEn = new Date('2026-08-05T15:00:00Z');
+      pagosService.obtenerPagosPorReferencia.mockResolvedValue(
+        new Map([['m1', { confirmadoEn, numeroRecibo: 'REC-2026-000007', gateway: 'EFECTIVO' }]]),
+      );
 
       const resultado = await service.listarDelMes(8, 2026);
 
-      expect(pagosService.obtenerPagadas).toHaveBeenCalledWith(TipoPagoReferencia.MENSUALIDAD, ['m1', 'm2']);
+      expect(pagosService.obtenerPagosPorReferencia).toHaveBeenCalledWith(TipoPagoReferencia.MENSUALIDAD, ['m1', 'm2']);
       expect(resultado[0].pagada).toBe(true);
       expect(resultado[0].montoQ).toBe(150);
+      // El pago queda atado a la mensualidad del alumno: cuando se pago, con
+      // que metodo y con que recibo.
+      expect(resultado[0].pagadaEn).toBe(confirmadoEn);
+      expect(resultado[0].numeroRecibo).toBe('REC-2026-000007');
+      expect(resultado[0].metodoPago).toBe('EFECTIVO');
       expect(resultado[1].pagada).toBe(false);
       expect(resultado[1].montoQ).toBe(150);
+      expect(resultado[1].pagadaEn).toBeNull();
+      expect(resultado[1].numeroRecibo).toBeNull();
+    });
+
+    it('cobrar en sede snapshotea el nombre del alumno en el pago', async () => {
+      prisma.academiaMensualidad.findUnique.mockResolvedValue({
+        id: 'm1',
+        mes: 8,
+        anio: 2026,
+        montoQ: '150',
+        alumno: { nombres: 'Mateo', apellidos: 'Garcia' },
+      });
+
+      await service.cobrarEnSede('m1', GatewayPago.EFECTIVO);
+
+      expect(pagosService.cobrarEfectivo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          referenciaId: 'm1',
+          montoQ: 150,
+          conceptoSnapshot: 'Mensualidad 8/2026 — Mateo Garcia',
+        }),
+      );
     });
   });
 });

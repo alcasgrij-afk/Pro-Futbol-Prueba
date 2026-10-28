@@ -11,9 +11,11 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
-import { GatewayPago, RolUsuario } from '@profutbol/shared-types';
+import { GatewayPago, RolUsuario, TipoPagoReferencia } from '@profutbol/shared-types';
 import { PagosService } from './pagos.service';
 import { CrearPagoDto } from './dto/crear-pago.dto';
+import { CobrarManualDto } from './dto/cobrar-manual.dto';
+import { CobrarAbonoDto } from './dto/cobrar-abono.dto';
 import { CobrarSedeDto } from '../reservas/dto/cobrar-sede.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -46,8 +48,13 @@ export class PagosController {
   @ApiBearerAuth()
   @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
   @Get()
-  listar(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
-    return this.pagosService.listar({ desde, hasta });
+  listar(
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('tipoReferencia') tipoReferencia?: TipoPagoReferencia,
+    @Query('referenciaId') referenciaId?: string,
+  ) {
+    return this.pagosService.listar({ desde, hasta, tipoReferencia, referenciaId });
   }
 
   // Modulo de Caja: cobra una reserva walk-in en efectivo (crea la reserva
@@ -57,6 +64,31 @@ export class PagosController {
   @Post('reservas/cobrar-sede')
   cobrarReservaSede(@Body() dto: CobrarSedeDto) {
     return this.pagosService.cobrarReservaSede(dto);
+  }
+
+  // Modulo de Caja: saldo pendiente de una reserva (precio - abonos cobrados).
+  @ApiBearerAuth()
+  @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
+  @Get('reservas/:id/saldo')
+  saldoReserva(@Param('id') id: string) {
+    return this.pagosService.saldoReserva(id);
+  }
+
+  // Modulo de Caja: cobra un abono (pago parcial) sobre una reserva existente.
+  @ApiBearerAuth()
+  @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
+  @Post('reservas/:id/abono')
+  cobrarAbono(@Param('id') id: string, @Body() dto: CobrarAbonoDto) {
+    return this.pagosService.cobrarAbonoReserva(id, dto);
+  }
+
+  // /admin/pagos: cobro manual en sede (arbitraje y conceptos del catalogo).
+  // Las reservas no pasan por aqui — se cobran solo desde Caja.
+  @ApiBearerAuth()
+  @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
+  @Post('manual')
+  cobrarManual(@Body() dto: CobrarManualDto) {
+    return this.pagosService.cobrarManual(dto);
   }
 
   /**

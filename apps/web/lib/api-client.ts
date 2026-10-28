@@ -1,6 +1,6 @@
 'use client';
 
-import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO, ProductoDTO, VentaDTO, CrearVentaInput, GastoDTO, CrearGastoInput, ResumenGastosDTO, CobrarSedeInput, ReprogramarReservaInput, CrearReservaBloqueoInput, CrearReservaRecurrenteInput, EstadoClienteValoradoDTO, GatewayPago } from '@profutbol/shared-types';
+import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO, ProductoDTO, VentaDTO, CrearVentaInput, GastoDTO, CrearGastoInput, ResumenGastosDTO, CobrarSedeInput, ReprogramarReservaInput, CrearReservaBloqueoInput, CrearReservaRecurrenteInput, EstadoClienteValoradoDTO, GatewayPago, MotivoCancelacion, ArbitroDTO, ConceptoPagoDTO, CobrarManualInput, CobrarAbonoInput, SaldoReservaDTO, ReporteCierreDTO, TipoPagoReferencia } from '@profutbol/shared-types';
 
 const TOKEN_KEY = 'profutbol_access_token';
 const REFRESH_KEY = 'profutbol_refresh_token';
@@ -97,6 +97,7 @@ export interface PagoLedgerItem {
   estado: string;
   montoQ: number;
   descripcion: string | null;
+  numeroRecibo: string | null;
   creadoEn: string;
   confirmadoEn: string | null;
 }
@@ -153,7 +154,12 @@ export const api = {
 
   confirmarReserva: (id: string) => request<ReservaDTO>(`/reservas/${id}/confirmar`, { method: 'PATCH' }),
 
-  cancelarReserva: (id: string) => request<ReservaDTO>(`/reservas/${id}/cancelar`, { method: 'PATCH' }),
+  // motivo CLIMA = caso especial de clima en Caja (sin penalidad); omitido = OTRO.
+  cancelarReserva: (id: string, motivo?: MotivoCancelacion) =>
+    request<ReservaDTO>(`/reservas/${id}/cancelar`, {
+      method: 'PATCH',
+      body: JSON.stringify(motivo ? { motivo } : {}),
+    }),
 
   reprogramarReserva: (id: string, datos: ReprogramarReservaInput) =>
     request<ReservaDTO>(`/reservas/${id}`, { method: 'PATCH', body: JSON.stringify(datos) }),
@@ -202,10 +208,41 @@ export const api = {
 
   resumenGastos: (desde: string, hasta: string) => request<ResumenGastosDTO>(`/gastos/resumen?desde=${desde}&hasta=${hasta}`),
 
-  listarPagos: (filtros: { desde?: string; hasta?: string } = {}) => {
+  listarPagos: (filtros: { desde?: string; hasta?: string; tipoReferencia?: TipoPagoReferencia; referenciaId?: string } = {}) => {
     const params = new URLSearchParams(filtros as Record<string, string>);
     return request<PagoLedgerItem[]>(`/payments?${params.toString()}`);
   },
+
+  // ---- Cobros manuales, abonos y catalogos (Fase 7) ----
+
+  // Cobro manual en sede: arbitraje y conceptos del catalogo. Las reservas NO
+  // se cobran por aqui (solo desde Caja) ni las mensualidades (endpoint de
+  // academia, que las ata al alumno).
+  cobrarManual: (datos: CobrarManualInput) =>
+    request<PagoDetalle>('/payments/manual', { method: 'POST', body: JSON.stringify(datos) }),
+
+  saldoReserva: (reservaId: string) => request<SaldoReservaDTO>(`/payments/reservas/${reservaId}/saldo`),
+
+  cobrarAbonoReserva: (reservaId: string, datos: CobrarAbonoInput) =>
+    request<PagoDetalle>(`/payments/reservas/${reservaId}/abono`, { method: 'POST', body: JSON.stringify(datos) }),
+
+  listarArbitros: (activo?: boolean) =>
+    request<ArbitroDTO[]>(`/arbitros${activo !== undefined ? `?activo=${activo}` : ''}`),
+
+  crearArbitro: (datos: { nombre: string; telefono?: string }) =>
+    request<ArbitroDTO>('/arbitros', { method: 'POST', body: JSON.stringify(datos) }),
+
+  actualizarArbitro: (id: string, datos: { nombre?: string; telefono?: string; activo?: boolean }) =>
+    request<ArbitroDTO>(`/arbitros/${id}`, { method: 'PATCH', body: JSON.stringify(datos) }),
+
+  listarConceptosPago: (activo?: boolean) =>
+    request<ConceptoPagoDTO[]>(`/conceptos-pago${activo !== undefined ? `?activo=${activo}` : ''}`),
+
+  crearConceptoPago: (datos: { nombre: string }) =>
+    request<ConceptoPagoDTO>('/conceptos-pago', { method: 'POST', body: JSON.stringify(datos) }),
+
+  actualizarConceptoPago: (id: string, datos: { nombre?: string; activo?: boolean }) =>
+    request<ConceptoPagoDTO>(`/conceptos-pago/${id}`, { method: 'PATCH', body: JSON.stringify(datos) }),
 
   // ---- Torneos (Fase 3) ----
 
@@ -294,6 +331,9 @@ export const api = {
   reporteMorosidad: (diasVencimiento = 7) =>
     request<ReporteMorosidadDTO>(`/reportes/morosidad?diasVencimiento=${diasVencimiento}`),
 
+  reporteCierre: (desde: string, hasta: string) =>
+    request<ReporteCierreDTO>(`/reportes/cierre?desde=${desde}&hasta=${hasta}`),
+
   cambiarPassword: (passwordActual: string, passwordNuevo: string) =>
     request('/auth/password', { method: 'PATCH', body: JSON.stringify({ passwordActual, passwordNuevo }) }),
 
@@ -303,7 +343,7 @@ export const api = {
    * se maneja aparte, con fetch directo, para poder disparar la descarga
    * en el navegador.
    */
-  async descargarExportacion(path: string, nombreSugerido: string) {
+  async obtenerExportacion(path: string): Promise<Blob> {
     let token = obtenerToken();
     let respuesta = await fetch(`/api${path}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -318,7 +358,11 @@ export const api = {
     }
     if (!respuesta.ok) throw new ApiError(respuesta.status, 'No se pudo generar el archivo.');
 
-    const blob = await respuesta.blob();
+    return respuesta.blob();
+  },
+
+  async descargarExportacion(path: string, nombreSugerido: string) {
+    const blob = await this.obtenerExportacion(path);
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

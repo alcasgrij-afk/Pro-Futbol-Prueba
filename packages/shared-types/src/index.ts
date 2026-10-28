@@ -60,6 +60,13 @@ export enum TipoPagoReferencia {
   EQUIPO = 'EQUIPO',
   MENSUALIDAD = 'MENSUALIDAD',
   VENTA = 'VENTA',
+  ARBITRO = 'ARBITRO',
+  MANUAL = 'MANUAL',
+}
+
+export enum MotivoCancelacion {
+  CLIMA = 'CLIMA',
+  OTRO = 'OTRO',
 }
 
 export enum ProductoCategoria {
@@ -187,6 +194,11 @@ export interface ReservaDTO {
   precioTotalQ: number;
   creadoEn: string;
   expiraEn?: string | null;
+  motivoCancelacion?: MotivoCancelacion | null;
+  /** Suma de pagos COMPLETADOS de la reserva (abonos incluidos). */
+  pagadoQ?: number;
+  /** precioTotalQ - pagadoQ. > 0 = queda saldo por cobrar en caja. */
+  saldoQ?: number;
 }
 
 export interface CrearReservaInput {
@@ -337,6 +349,10 @@ export interface AcademiaMensualidadDTO {
   avisoVencidoEnviado: boolean;
   creadoEn: string;
   pagada: boolean;
+  /** Cuando se confirmo el pago, con que metodo y con que recibo (si ya se pago). */
+  pagadaEn?: string | null;
+  numeroRecibo?: string | null;
+  metodoPago?: GatewayPago | null;
 }
 
 export interface AsistenciaDTO {
@@ -420,6 +436,8 @@ export interface CobrarSedeInput {
   codigoAutorizacion?: string;
   /** Caja aplica el beneficio de Cliente Valorado: cobra Q0 (6ta reserva gratis). */
   gratis?: boolean;
+  /** Abono: cobra solo una parte del precio. Omitido = se cobra completo. */
+  montoQ?: number;
 }
 
 export interface ReprogramarReservaInput {
@@ -451,4 +469,77 @@ export interface CrearReservaRecurrenteInput {
   horaFin: string;
   fechaInicio: string;
   fechaFin?: string;
+}
+
+// ---------- Cobros manuales en sede: arbitros y conceptos (Fase 7) ----------
+
+export interface ArbitroDTO {
+  id: string;
+  nombre: string;
+  telefono?: string | null;
+  activo: boolean;
+  creadoEn: string;
+}
+
+export interface ConceptoPagoDTO {
+  id: string;
+  nombre: string;
+  activo: boolean;
+  creadoEn: string;
+}
+
+/**
+ * Cobro manual en sede desde /admin/pagos. Solo conceptos que NO son reservas
+ * (las reservas se cobran unicamente desde Caja) ni mensualidades (esas usan
+ * el endpoint propio de academia, que ya las ata al alumno).
+ */
+export interface CobrarManualInput {
+  tipo: TipoPagoReferencia.ARBITRO | TipoPagoReferencia.MANUAL;
+  /** Id del Arbitro (tipo=ARBITRO) o del ConceptoPago (tipo=MANUAL). */
+  referenciaId: string;
+  montoQ: number;
+  metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
+  codigoAutorizacion?: string;
+  nota?: string;
+}
+
+/** Abono (pago parcial) de una reserva ya creada, cobrado en caja. */
+export interface CobrarAbonoInput {
+  montoQ: number;
+  metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
+  codigoAutorizacion?: string;
+}
+
+export interface SaldoReservaDTO {
+  reservaId: string;
+  precioTotalQ: number;
+  pagadoQ: number;
+  saldoQ: number;
+}
+
+/**
+ * Cierre de caja por rango de fechas: el mismo reporte sirve para el cierre de
+ * dia, de semana y de mes (solo cambia el rango).
+ * OJO: los pagos de VENTA ya estan incluidos en `ingresos.totalQ`; el bloque
+ * `ventas` es desglose informativo, no un sumando. netoQ = ingresos - gastos.
+ */
+export interface ReporteCierreDTO {
+  desde: string;
+  hasta: string;
+  ingresos: {
+    totalQ: number;
+    cantidad: number;
+    porCategoria: { tipoReferencia: string; etiqueta: string; totalQ: number; cantidad: number }[];
+    porMetodo: { gateway: string; totalQ: number; cantidad: number }[];
+  };
+  gastos: {
+    totalQ: number;
+    porCategoria: { categoria: GastoCategoria; totalQ: number; cantidad: number }[];
+  };
+  ventas: {
+    totalQ: number;
+    cantidad: number;
+    porProducto: { nombre: string; cantidad: number; totalQ: number }[];
+  };
+  netoQ: number;
 }

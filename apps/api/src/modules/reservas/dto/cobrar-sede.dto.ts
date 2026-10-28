@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { GatewayPago } from '@profutbol/shared-types';
-import { IsBoolean, IsDateString, IsIn, IsOptional, IsString, Matches, MinLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsNumber, IsOptional, IsPositive, IsString, Matches, MinLength, ValidateIf } from 'class-validator';
 
 export class CobrarSedeDto {
   @ApiProperty({ example: 'seed-cancha-futbol-5' })
@@ -40,4 +40,12 @@ export class CobrarSedeDto {
   @IsOptional()
   @IsBoolean()
   gratis?: boolean;
+
+  // Abono: cobra solo una parte del precio y deja saldo pendiente (se cobra
+  // despues desde el menu de Caja). Omitido = se cobra el precio completo.
+  @ApiProperty({ example: 100, required: false })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive({ message: 'El abono debe ser mayor a 0.' })
+  montoQ?: number;
 }

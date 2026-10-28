@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ReporteIngresosDTO, ReporteMorosidadDTO, ReporteOcupacionDTO } from '@profutbol/shared-types';
 import { api, ApiError } from '../../../lib/api-client';
 import { hoyISOAnios } from '../../../lib/fechas';
+import CierreCajaPanel from '../../../components/CierreCajaPanel';
 
 // Fecha local GT (no UTC): toISOString().slice(0,10) corre "hoy" un dia adelante
 // entre las 18:00 y 23:59 (UTC-6) y el rango terminaria en manana (vacio).
@@ -71,6 +72,10 @@ export default function ReportesPage() {
 
   return (
     <div>
+      <div className="mb-6">
+        <CierreCajaPanel />
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-lg font-bold text-navy">Reportes</h1>
         <div className="flex items-center gap-2 text-sm">

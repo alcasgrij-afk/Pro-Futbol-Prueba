@@ -11,6 +11,8 @@ const ETIQUETA_MODULO: Record<string, string> = {
   EQUIPO: 'Cuota de torneo',
   MENSUALIDAD: 'Mensualidad de academia',
   VENTA: 'Venta de productos',
+  ARBITRO: 'Servicio de arbitraje',
+  MANUAL: 'Otros pagos',
 };
 
 @Injectable()
@@ -108,12 +110,37 @@ export class PagosService {
    * un pago COMPLETADO en una sola consulta (evita el N+1 al listar muchas).
    */
   async obtenerPagadas(tipoReferencia: TipoPagoReferencia, referenciaIds: string[]): Promise<Set<string>> {
-    if (referenciaIds.length === 0) return new Set();
+    const pagos = await this.obtenerPagosPorReferencia(tipoReferencia, referenciaIds);
+    return new Set(pagos.keys());
+  }
+
+  /**
+   * Igual que obtenerPagadas pero devuelve CUANDO se pago, con que metodo y con
+   * que recibo (el primer pago COMPLETADO de cada referencia). Permite mostrar
+   * el pago sobre el registro que lo origino — p.ej. la mensualidad del alumno
+   * con su fecha y numero de recibo — sin caer en un N+1.
+   */
+  async obtenerPagosPorReferencia(
+    tipoReferencia: TipoPagoReferencia,
+    referenciaIds: string[],
+  ): Promise<Map<string, { confirmadoEn: Date | null; numeroRecibo: string | null; gateway: GatewayPago }>> {
+    if (referenciaIds.length === 0) return new Map();
     const pagos = await this.prisma.pago.findMany({
       where: { tipoReferencia, referenciaId: { in: referenciaIds }, estado: EstadoPago.COMPLETADO },
-      select: { referenciaId: true },
+      select: { referenciaId: true, confirmadoEn: true, numeroRecibo: true, gateway: true },
+      orderBy: { confirmadoEn: 'asc' },
     });
-    return new Set(pagos.map((p) => p.referenciaId));
+
+    const mapa = new Map<string, { confirmadoEn: Date | null; numeroRecibo: string | null; gateway: GatewayPago }>();
+    for (const pago of pagos) {
+      if (mapa.has(pago.referenciaId)) continue; // el primero es el que pago
+      mapa.set(pago.referenciaId, {
+        confirmadoEn: pago.confirmadoEn,
+        numeroRecibo: pago.numeroRecibo,
+        gateway: pago.gateway as GatewayPago,
+      });
+    }
+    return mapa;
   }
 
   private async crearPagoConReferencia(
@@ -207,6 +234,9 @@ export class PagosService {
         montoQ: Number(pago.montoQ),
         confirmadoEn: pago.confirmadoEn,
         numeroRecibo: pago.numeroRecibo,
+        gateway: pago.gateway,
+        codigoAutorizacion: pago.codigoAutorizacion,
+        clienteNombre: mensualidad ? `${mensualidad.alumno.nombres} ${mensualidad.alumno.apellidos}`.trim() : null,
         descripcion: mensualidad
           ? `Mensualidad academia ${mensualidad.mes}/${mensualidad.anio} - ${mensualidad.alumno.nombres} ${mensualidad.alumno.apellidos}`
           : 'Mensualidad de academia',
@@ -226,9 +256,30 @@ export class PagosService {
         montoQ: Number(pago.montoQ),
         confirmadoEn: pago.confirmadoEn,
         numeroRecibo: pago.numeroRecibo,
+        gateway: pago.gateway,
+        codigoAutorizacion: pago.codigoAutorizacion,
         descripcion: venta
           ? venta.items.map((i) => `${i.cantidad}x ${i.nombreSnapshot}`).join(', ')
           : 'Venta de productos',
+      };
+    }
+
+    // Cobros manuales de Caja/Pagos (arbitraje y conceptos del catalogo): la
+    // descripcion ya quedo snapshoteada al cobrar, no hace falta ir a buscarla.
+    if (pago.tipoReferencia === TipoPagoReferencia.ARBITRO || pago.tipoReferencia === TipoPagoReferencia.MANUAL) {
+      return {
+        paymentId: pago.id,
+        estado: pago.estado,
+        tipoReferencia: pago.tipoReferencia,
+        referenciaId: pago.referenciaId,
+        montoQ: Number(pago.montoQ),
+        confirmadoEn: pago.confirmadoEn,
+        numeroRecibo: pago.numeroRecibo,
+        gateway: pago.gateway,
+        codigoAutorizacion: pago.codigoAutorizacion,
+        descripcion:
+          [pago.conceptoSnapshot, pago.nota].filter(Boolean).join(' · ') ||
+          ETIQUETA_MODULO[pago.tipoReferencia],
       };
     }
 
@@ -338,15 +389,128 @@ export class PagosService {
     metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
     codigoAutorizacion?: string;
     gratis?: boolean;
+    montoQ?: number;
   }) {
     const reserva = await this.reservasService.crearReserva({ ...dto, formaPago: FormaPago.EN_SEDE });
+    const precioTotalQ = Number(reserva.precioTotalQ);
+
+    let montoQ = dto.gratis ? 0 : precioTotalQ;
+    if (!dto.gratis && dto.montoQ != null) {
+      if (dto.montoQ > precioTotalQ) {
+        // Cancelar la reserva recien creada: si no, un abono invalido deja el
+        // horario ocupado por una reserva que nunca se llego a cobrar.
+        await this.reservasService.cancelar(reserva.id);
+        throw new BadRequestException(
+          `El abono (Q${dto.montoQ}) no puede exceder el precio de la reserva (Q${precioTotalQ}).`,
+        );
+      }
+      montoQ = dto.montoQ;
+    }
+
     return this.cobrarEfectivo({
       tipoReferencia: TipoPagoReferencia.RESERVA,
       referenciaId: reserva.id,
-      montoQ: dto.gratis ? 0 : Number(reserva.precioTotalQ),
+      montoQ,
       gateway: dto.metodoPago,
       codigoAutorizacion: dto.codigoAutorizacion,
     });
+  }
+
+  /**
+   * Saldo pendiente de una reserva: precio menos la suma de sus pagos
+   * COMPLETADOS (los abonos son varios Pago sobre la misma reserva, no hay
+   * columna montoPagado que se pueda desincronizar).
+   */
+  async saldoReserva(reservaId: string) {
+    const reserva = await this.reservasService.obtenerPorId(reservaId);
+    const { _sum } = await this.prisma.pago.aggregate({
+      where: {
+        tipoReferencia: TipoPagoReferencia.RESERVA,
+        referenciaId: reservaId,
+        estado: EstadoPago.COMPLETADO,
+      },
+      _sum: { montoQ: true },
+    });
+
+    const precioTotalQ = Number(reserva.precioTotalQ);
+    const pagadoQ = Number(_sum.montoQ ?? 0);
+    return {
+      reservaId,
+      precioTotalQ,
+      pagadoQ,
+      saldoQ: Math.max(Math.round((precioTotalQ - pagadoQ) * 100) / 100, 0),
+    };
+  }
+
+  /**
+   * Abono (pago parcial) de una reserva ya existente, cobrado en Caja. El
+   * primer abono ya la deja CONFIRMADA (cobrarEfectivo -> confirmar, que es
+   * idempotente), asi que el horario queda apartado y el saldo se cobra
+   * cuando el cliente llegue.
+   */
+  async cobrarAbonoReserva(
+    reservaId: string,
+    input: { montoQ: number; metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA; codigoAutorizacion?: string },
+  ) {
+    const saldo = await this.saldoReserva(reservaId);
+    if (saldo.saldoQ <= 0) {
+      throw new BadRequestException('La reserva ya esta pagada por completo.');
+    }
+    if (input.montoQ > saldo.saldoQ) {
+      throw new BadRequestException(
+        `El abono (Q${input.montoQ}) excede el saldo pendiente (Q${saldo.saldoQ}).`,
+      );
+    }
+
+    return this.cobrarEfectivo({
+      tipoReferencia: TipoPagoReferencia.RESERVA,
+      referenciaId: reservaId,
+      montoQ: input.montoQ,
+      gateway: input.metodoPago,
+      codigoAutorizacion: input.codigoAutorizacion,
+    });
+  }
+
+  /**
+   * Cobro manual en sede desde /admin/pagos: arbitraje y los conceptos del
+   * catalogo editable. Las reservas NO pasan por aqui (se cobran solo desde
+   * Caja) y las mensualidades tampoco (usan el endpoint de academia, que las
+   * ata al alumno). El nombre del arbitro/concepto se snapshotea en el Pago.
+   */
+  async cobrarManual(dto: {
+    tipo: TipoPagoReferencia.ARBITRO | TipoPagoReferencia.MANUAL;
+    referenciaId: string;
+    montoQ: number;
+    metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
+    codigoAutorizacion?: string;
+    nota?: string;
+  }) {
+    const conceptoSnapshot = await this.resolverConceptoManual(dto.tipo, dto.referenciaId);
+
+    return this.cobrarEfectivo({
+      tipoReferencia: dto.tipo,
+      referenciaId: dto.referenciaId,
+      montoQ: dto.montoQ,
+      gateway: dto.metodoPago,
+      codigoAutorizacion: dto.codigoAutorizacion,
+      conceptoSnapshot,
+      nota: dto.nota,
+    });
+  }
+
+  private async resolverConceptoManual(
+    tipo: TipoPagoReferencia.ARBITRO | TipoPagoReferencia.MANUAL,
+    referenciaId: string,
+  ): Promise<string> {
+    if (tipo === TipoPagoReferencia.ARBITRO) {
+      const arbitro = await this.prisma.arbitro.findUnique({ where: { id: referenciaId } });
+      if (!arbitro || !arbitro.activo) throw new NotFoundException('Arbitro no encontrado o inactivo.');
+      return `Arbitraje — ${arbitro.nombre}`;
+    }
+
+    const concepto = await this.prisma.conceptoPago.findUnique({ where: { id: referenciaId } });
+    if (!concepto || !concepto.activo) throw new NotFoundException('Concepto de pago no encontrado o inactivo.');
+    return concepto.nombre;
   }
 
   /**
@@ -361,6 +525,8 @@ export class PagosService {
     montoQ: number;
     gateway?: GatewayPago;
     codigoAutorizacion?: string;
+    conceptoSnapshot?: string;
+    nota?: string;
   }) {
     const gateway = input.gateway ?? GatewayPago.EFECTIVO;
     const numeroRecibo = await this.generarNumeroRecibo();
@@ -376,6 +542,8 @@ export class PagosService {
         referenciaExterna: `${gateway.toLowerCase()}-${Date.now()}`,
         codigoAutorizacion: input.codigoAutorizacion,
         numeroRecibo,
+        conceptoSnapshot: input.conceptoSnapshot,
+        nota: input.nota,
       },
     });
 
@@ -393,22 +561,32 @@ export class PagosService {
    * MENSUALIDAD/VENTA la etiqueta del modulo ya es suficiente descripcion
    * en un listado (el detalle completo esta en la pagina de cada modulo).
    */
-  async listar(filtros: { desde?: string; hasta?: string }) {
+  async listar(filtros: {
+    desde?: string;
+    hasta?: string;
+    tipoReferencia?: TipoPagoReferencia;
+    referenciaId?: string;
+  }) {
     const pagos = await this.prisma.pago.findMany({
-      where:
-        filtros.desde || filtros.hasta
+      where: {
+        ...(filtros.tipoReferencia ? { tipoReferencia: filtros.tipoReferencia } : {}),
+        ...(filtros.referenciaId ? { referenciaId: filtros.referenciaId } : {}),
+        ...(filtros.desde || filtros.hasta
           ? {
               creadoEn: {
                 ...(filtros.desde ? { gte: new Date(filtros.desde) } : {}),
                 ...(filtros.hasta ? { lte: this.finDelDia(filtros.hasta) } : {}),
               },
             }
-          : {},
+          : {}),
+      },
       include: {
         reserva: { select: { cancha: { select: { nombre: true } }, cliente: { select: { nombre: true } } } },
       },
       orderBy: { creadoEn: 'desc' },
     });
+
+    const mensualidades = await this.describirMensualidades(pagos);
 
     return pagos.map((p) => ({
       paymentId: p.id,
@@ -417,12 +595,40 @@ export class PagosService {
       gateway: p.gateway,
       estado: p.estado,
       montoQ: Number(p.montoQ),
+      numeroRecibo: p.numeroRecibo,
       descripcion: p.reserva
         ? [p.reserva.cancha?.nombre, p.reserva.cliente?.nombre].filter(Boolean).join(' · ')
-        : null,
+        : (mensualidades.get(p.referenciaId) ??
+          ([p.conceptoSnapshot, p.nota].filter(Boolean).join(' · ') || null)),
       creadoEn: p.creadoEn,
       confirmadoEn: p.confirmadoEn,
     }));
+  }
+
+  /**
+   * Nombre del alumno + mes/anio de las filas MENSUALIDAD del listado, en UNA
+   * sola consulta (misma descripcion que ReportesService.describirReferencia,
+   * pero en lote para no caer en un N+1 al pintar la bitacora).
+   */
+  private async describirMensualidades(
+    pagos: { tipoReferencia: string; referenciaId: string }[],
+  ): Promise<Map<string, string>> {
+    const ids = pagos
+      .filter((p) => p.tipoReferencia === TipoPagoReferencia.MENSUALIDAD)
+      .map((p) => p.referenciaId);
+    if (ids.length === 0) return new Map();
+
+    const mensualidades = await this.prisma.academiaMensualidad.findMany({
+      where: { id: { in: ids } },
+      include: { alumno: { select: { nombres: true, apellidos: true } } },
+    });
+
+    return new Map(
+      mensualidades.map((m) => [
+        m.id,
+        `Mensualidad ${m.mes}/${m.anio} · ${m.alumno.nombres} ${m.alumno.apellidos}`.trim(),
+      ]),
+    );
   }
 
   /**

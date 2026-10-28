@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
-import { ReporteGastosParaExportar, ReporteIngresosParaExportar, ReporteMorosidadParaExportar } from './excel-export.service';
+import {
+  ReporteCierreParaExportar,
+  ReporteGastosParaExportar,
+  ReporteIngresosParaExportar,
+  ReporteMorosidadParaExportar,
+} from './excel-export.service';
 
 const NAVY = '#00205B';
 const RED = '#E4032C';
@@ -100,6 +105,78 @@ export class PdfExportService {
     doc.fontSize(18).fillColor(NAVY).text('Pro Futbol Antigua', { continued: false });
     doc.fontSize(14).fillColor(RED).text(titulo);
     doc.moveDown(0.5);
+  }
+
+  /**
+   * Cierre de caja (dia/semana/mes) en una hoja: ingresos por categoria y
+   * metodo, gastos, tienda y el neto. Es el PDF que el personal comparte por
+   * WhatsApp/correo al cerrar.
+   */
+  async generarReporteCierre(reporte: ReporteCierreParaExportar): Promise<Buffer> {
+    return this.construirDocumento((doc) => {
+      this.encabezado(doc, 'Cierre de Caja');
+      doc.fontSize(10).fillColor(GRAY).text(`Periodo: ${reporte.desde} a ${reporte.hasta}`);
+      doc.moveDown(1);
+
+      doc.fontSize(20).fillColor(NAVY).text(`Neto: Q${reporte.netoQ.toLocaleString('es-GT')}`);
+      doc
+        .fontSize(10)
+        .fillColor(GRAY)
+        .text(
+          `Ingresos Q${reporte.ingresos.totalQ.toLocaleString('es-GT')} (${reporte.ingresos.cantidad} pagos) — ` +
+            `Gastos Q${reporte.gastos.totalQ.toLocaleString('es-GT')}`,
+        );
+      doc.moveDown(1.5);
+
+      doc.fontSize(13).fillColor(NAVY).text('Ingresos por categoria');
+      doc.moveDown(0.3);
+      reporte.ingresos.porCategoria.forEach((c) => {
+        doc
+          .fontSize(10)
+          .fillColor(GRAY)
+          .text(`${c.etiqueta}: Q${c.totalQ.toLocaleString('es-GT')} (${c.cantidad} pagos)`);
+      });
+      doc.moveDown(1);
+
+      doc.fontSize(13).fillColor(NAVY).text('Por metodo de pago');
+      doc.moveDown(0.3);
+      reporte.ingresos.porMetodo.forEach((m) => {
+        doc
+          .fontSize(10)
+          .fillColor(GRAY)
+          .text(`${m.gateway}: Q${m.totalQ.toLocaleString('es-GT')} (${m.cantidad} pagos)`);
+      });
+      doc.moveDown(1);
+
+      doc.fontSize(13).fillColor(NAVY).text('Gastos por categoria');
+      doc.moveDown(0.3);
+      if (reporte.gastos.porCategoria.length === 0) {
+        doc.fontSize(10).fillColor(GRAY).text('Sin gastos registrados en el periodo.');
+      }
+      reporte.gastos.porCategoria.forEach((c) => {
+        doc
+          .fontSize(10)
+          .fillColor(RED)
+          .text(`${c.categoria}: Q${c.totalQ.toLocaleString('es-GT')} (${c.cantidad} gastos)`);
+      });
+      doc.moveDown(1);
+
+      doc
+        .fontSize(13)
+        .fillColor(NAVY)
+        .text(`Tienda — Q${reporte.ventas.totalQ.toLocaleString('es-GT')} en ${reporte.ventas.cantidad} ventas`);
+      doc.moveDown(0.3);
+      // Aclaracion explicita en el papel: el total de tienda ya esta contado
+      // dentro de los ingresos, no se vuelve a sumar en el neto.
+      doc.fontSize(8).fillColor(GRAY).text('(ya incluido en los ingresos de arriba)');
+      doc.moveDown(0.3);
+      reporte.ventas.porProducto.forEach((pr) => {
+        doc
+          .fontSize(10)
+          .fillColor(GRAY)
+          .text(`${pr.cantidad}x ${pr.nombre}: Q${pr.totalQ.toLocaleString('es-GT')}`);
+      });
+    });
   }
 
   private construirDocumento(dibujar: (doc: PDFKit.PDFDocument) => void): Promise<Buffer> {

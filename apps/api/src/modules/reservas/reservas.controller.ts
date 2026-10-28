@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { EstadoReserva, RolUsuario, TipoReserva } from '@prisma/client';
+import { EstadoReserva, MotivoCancelacion, RolUsuario, TipoReserva } from '@prisma/client';
 import { ReservasService } from './reservas.service';
 import { CrearReservaDto } from './dto/crear-reserva.dto';
 import { CrearReservaRecurrenteDto } from './dto/crear-reserva-recurrente.dto';
@@ -91,7 +91,8 @@ export class ReservasController {
   @ApiBearerAuth()
   @Roles(RolUsuario.ADMIN, RolUsuario.RECEPCION)
   @Patch(':id/cancelar')
-  cancelar(@Param('id') id: string) {
-    return this.reservasService.cancelar(id);
+  cancelar(@Param('id') id: string, @Body() body?: { motivo?: MotivoCancelacion }) {
+    const motivo = body?.motivo === MotivoCancelacion.CLIMA ? MotivoCancelacion.CLIMA : MotivoCancelacion.OTRO;
+    return this.reservasService.cancelar(id, motivo);
   }
 }

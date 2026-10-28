@@ -65,8 +65,13 @@ export class MensualidadesService {
    * + numeroRecibo), sin pasar por el link de pasarela.
    */
   async cobrarEnSede(mensualidadId: string, metodoPago: GatewayPago.EFECTIVO | GatewayPago.TARJETA, codigoAutorizacion?: string) {
-    const mensualidad = await this.prisma.academiaMensualidad.findUnique({ where: { id: mensualidadId } });
+    const mensualidad = await this.prisma.academiaMensualidad.findUnique({
+      where: { id: mensualidadId },
+      include: { alumno: { select: { nombres: true, apellidos: true } } },
+    });
     if (!mensualidad) throw new NotFoundException('Mensualidad no encontrada.');
+
+    const alumno = `${mensualidad.alumno.nombres} ${mensualidad.alumno.apellidos}`.trim();
 
     return this.pagosService.cobrarEfectivo({
       tipoReferencia: TipoPagoReferencia.MENSUALIDAD,
@@ -74,6 +79,9 @@ export class MensualidadesService {
       montoQ: Number(mensualidad.montoQ),
       gateway: metodoPago,
       codigoAutorizacion,
+      // El recibo impreso y el cierre de caja llevan el nombre del alumno sin
+      // tener que volver a la tabla de mensualidades.
+      conceptoSnapshot: `Mensualidad ${mensualidad.mes}/${mensualidad.anio} — ${alumno}`,
     });
   }
 
@@ -110,11 +118,17 @@ export class MensualidadesService {
 
   private async adjuntarEstadoPago<T extends { id: string; montoQ: any }>(mensualidades: T[]) {
     const ids = mensualidades.map((m) => m.id);
-    const pagadas = await this.pagosService.obtenerPagadas(TipoPagoReferencia.MENSUALIDAD, ids);
-    return mensualidades.map((m) => ({
-      ...m,
-      montoQ: Number(m.montoQ), // Decimal → number para cumplir el DTO compartido
-      pagada: pagadas.has(m.id),
-    }));
+    const pagos = await this.pagosService.obtenerPagosPorReferencia(TipoPagoReferencia.MENSUALIDAD, ids);
+    return mensualidades.map((m) => {
+      const pago = pagos.get(m.id);
+      return {
+        ...m,
+        montoQ: Number(m.montoQ), // Decimal → number para cumplir el DTO compartido
+        pagada: !!pago,
+        pagadaEn: pago?.confirmadoEn ?? null,
+        numeroRecibo: pago?.numeroRecibo ?? null,
+        metodoPago: pago?.gateway ?? null,
+      };
+    });
   }
 }

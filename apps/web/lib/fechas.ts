@@ -23,3 +23,23 @@ export function hoyISODias(desplazo: number): string {
   d.setDate(d.getDate() + desplazo);
   return aISO(d);
 }
+/**
+ * Rango de la semana (lunes a domingo) que contiene a `fechaISO`. Lo usa el
+ * cierre de caja: dia/semana/mes son el mismo reporte con distinto rango.
+ */
+export function rangoSemana(fechaISO: string): { desde: string; hasta: string } {
+  const [anio, mes, dia] = fechaISO.split('-').map(Number);
+  const d = new Date(anio, mes - 1, dia);
+  // getDay(): 0=domingo. Se corre al lunes anterior (domingo cuenta como fin
+  // de la semana que arranco el lunes previo).
+  const offsetLunes = (d.getDay() + 6) % 7;
+  const lunes = new Date(anio, mes - 1, dia - offsetLunes);
+  const domingo = new Date(anio, mes - 1, dia - offsetLunes + 6);
+  return { desde: aISO(lunes), hasta: aISO(domingo) };
+}
+
+/** Rango del mes calendario que contiene a `fechaISO`. */
+export function rangoMes(fechaISO: string): { desde: string; hasta: string } {
+  const [anio, mes] = fechaISO.split('-').map(Number);
+  return { desde: aISO(new Date(anio, mes - 1, 1)), hasta: aISO(new Date(anio, mes, 0)) };
+}

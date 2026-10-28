@@ -8,7 +8,7 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
-import { EstadoReserva, FormaPago, Prisma, TipoReserva } from '@prisma/client';
+import { EstadoPago, EstadoReserva, FormaPago, MotivoCancelacion, Prisma, TipoPagoReferencia, TipoReserva } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { ClientesService } from '../clientes/clientes.service';
@@ -212,13 +212,13 @@ export class ReservasService {
     return actualizada;
   }
 
-  async cancelar(reservaId: string) {
+  async cancelar(reservaId: string, motivo: MotivoCancelacion = MotivoCancelacion.OTRO) {
     const reserva = await this.obtenerPorId(reservaId);
     if (reserva.estado === EstadoReserva.CANCELADA) return reserva;
 
     const actualizada = await this.prisma.reserva.update({
       where: { id: reservaId },
-      data: { estado: EstadoReserva.CANCELADA },
+      data: { estado: EstadoReserva.CANCELADA, motivoCancelacion: motivo },
     });
 
     await this.cancelarJobDeLiberacion(reservaId);
@@ -311,7 +311,7 @@ export class ReservasService {
   }
 
   async listar(filtros: { fecha?: string; estado?: EstadoReserva }) {
-    return this.prisma.reserva.findMany({
+    const reservas = await this.prisma.reserva.findMany({
       where: {
         ...(filtros.fecha ? { fecha: new Date(filtros.fecha) } : {}),
         ...(filtros.estado ? { estado: filtros.estado } : {}),
@@ -319,6 +319,40 @@ export class ReservasService {
       include: { cancha: true, cliente: true },
       orderBy: [{ fecha: 'asc' }, { horaInicioMin: 'asc' }],
     });
+
+    const pagado = await this.pagadoPorReserva(reservas.map((r) => r.id));
+
+    return reservas.map((r) => {
+      const precioTotalQ = Number(r.precioTotalQ);
+      const pagadoQ = pagado.get(r.id) ?? 0;
+      return {
+        ...r,
+        pagadoQ,
+        saldoQ: Math.max(Math.round((precioTotalQ - pagadoQ) * 100) / 100, 0),
+      };
+    });
+  }
+
+  /**
+   * Total cobrado por reserva (abonos sumados) en UNA sola consulta agrupada:
+   * es lo que permite a Caja mostrar el saldo pendiente en la grilla sin
+   * disparar una consulta por bloque (mismo criterio que
+   * PagosService.obtenerPagadas).
+   */
+  private async pagadoPorReserva(reservaIds: string[]): Promise<Map<string, number>> {
+    if (reservaIds.length === 0) return new Map();
+
+    const grupos = await this.prisma.pago.groupBy({
+      by: ['referenciaId'],
+      where: {
+        tipoReferencia: TipoPagoReferencia.RESERVA,
+        referenciaId: { in: reservaIds },
+        estado: EstadoPago.COMPLETADO,
+      },
+      _sum: { montoQ: true },
+    });
+
+    return new Map(grupos.map((g) => [g.referenciaId, Number(g._sum.montoQ ?? 0)]));
   }
 
   /**

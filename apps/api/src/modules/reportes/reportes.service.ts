@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EstadoPago, EstadoReserva, TipoPagoReferencia } from '@profutbol/shared-types';
+import { EstadoPago, EstadoReserva, EstadoVenta, GastoCategoria, TipoPagoReferencia } from '@profutbol/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const ETIQUETA_MODULO: Record<string, string> = {
@@ -7,6 +7,8 @@ const ETIQUETA_MODULO: Record<string, string> = {
   EQUIPO: 'Cuotas de torneo',
   MENSUALIDAD: 'Mensualidades de academia',
   VENTA: 'Venta de productos',
+  ARBITRO: 'Servicio de arbitraje',
+  MANUAL: 'Otros pagos',
 };
 
 @Injectable()
@@ -62,6 +64,121 @@ export class ReportesService {
     }));
 
     return { desde, hasta, totalQ, cantidadPagos: pagos.length, porDia, porModulo };
+  }
+
+  /**
+   * Cierre de caja del periodo: pagos cobrados, gastos y venta de tienda en un
+   * solo reporte. La MISMA funcion sirve para el cierre de dia, de semana y de
+   * mes — solo cambia el rango (no hay tabla de cortes: todo se calcula en vivo
+   * sobre Pago/Gasto/Venta, igual que `ingresos`).
+   *
+   * OJO con el doble conteo: los pagos de VENTA ya estan dentro de
+   * `ingresos.totalQ`; el bloque `ventas` es desglose informativo de que se
+   * vendio, NO un sumando. Por eso netoQ = ingresos - gastos.
+   */
+  async cierre(desde: string, hasta: string) {
+    const [pagos, gastos, ventas] = await Promise.all([
+      this.prisma.pago.findMany({
+        where: {
+          estado: EstadoPago.COMPLETADO,
+          confirmadoEn: { gte: new Date(desde), lte: this.finDelDia(hasta) },
+        },
+        select: { tipoReferencia: true, gateway: true, montoQ: true },
+      }),
+      this.prisma.gasto.findMany({
+        where: { fecha: { gte: new Date(desde), lte: this.finDelDia(hasta) } },
+        select: { categoria: true, montoQ: true },
+      }),
+      this.prisma.venta.findMany({
+        where: {
+          estado: EstadoVenta.COMPLETADA,
+          creadoEn: { gte: new Date(desde), lte: this.finDelDia(hasta) },
+        },
+        select: { montoTotalQ: true, items: { select: { nombreSnapshot: true, cantidad: true, subtotalQ: true } } },
+      }),
+    ]);
+
+    const porCategoriaMap = new Map<string, { totalQ: number; cantidad: number }>();
+    const porMetodoMap = new Map<string, { totalQ: number; cantidad: number }>();
+    let ingresosTotalQ = 0;
+
+    for (const pago of pagos) {
+      const monto = Number(pago.montoQ);
+      ingresosTotalQ += monto;
+
+      const categoria = porCategoriaMap.get(pago.tipoReferencia) ?? { totalQ: 0, cantidad: 0 };
+      porCategoriaMap.set(pago.tipoReferencia, { totalQ: categoria.totalQ + monto, cantidad: categoria.cantidad + 1 });
+
+      const metodo = porMetodoMap.get(pago.gateway) ?? { totalQ: 0, cantidad: 0 };
+      porMetodoMap.set(pago.gateway, { totalQ: metodo.totalQ + monto, cantidad: metodo.cantidad + 1 });
+    }
+
+    const gastosPorCategoriaMap = new Map<GastoCategoria, { totalQ: number; cantidad: number }>();
+    let gastosTotalQ = 0;
+
+    for (const gasto of gastos) {
+      const monto = Number(gasto.montoQ);
+      gastosTotalQ += monto;
+      const actual = gastosPorCategoriaMap.get(gasto.categoria as GastoCategoria) ?? { totalQ: 0, cantidad: 0 };
+      gastosPorCategoriaMap.set(gasto.categoria as GastoCategoria, {
+        totalQ: actual.totalQ + monto,
+        cantidad: actual.cantidad + 1,
+      });
+    }
+
+    const porProductoMap = new Map<string, { cantidad: number; totalQ: number }>();
+    let ventasTotalQ = 0;
+
+    for (const venta of ventas) {
+      ventasTotalQ += Number(venta.montoTotalQ);
+      for (const item of venta.items) {
+        const actual = porProductoMap.get(item.nombreSnapshot) ?? { cantidad: 0, totalQ: 0 };
+        porProductoMap.set(item.nombreSnapshot, {
+          cantidad: actual.cantidad + item.cantidad,
+          totalQ: actual.totalQ + Number(item.subtotalQ),
+        });
+      }
+    }
+
+    return {
+      desde,
+      hasta,
+      ingresos: {
+        totalQ: this.redondear(ingresosTotalQ),
+        cantidad: pagos.length,
+        porCategoria: Array.from(porCategoriaMap.entries()).map(([tipoReferencia, datos]) => ({
+          tipoReferencia,
+          etiqueta: ETIQUETA_MODULO[tipoReferencia] ?? tipoReferencia,
+          totalQ: this.redondear(datos.totalQ),
+          cantidad: datos.cantidad,
+        })),
+        porMetodo: Array.from(porMetodoMap.entries()).map(([gateway, datos]) => ({
+          gateway,
+          totalQ: this.redondear(datos.totalQ),
+          cantidad: datos.cantidad,
+        })),
+      },
+      gastos: {
+        totalQ: this.redondear(gastosTotalQ),
+        porCategoria: Array.from(gastosPorCategoriaMap.entries()).map(([categoria, datos]) => ({
+          categoria,
+          totalQ: this.redondear(datos.totalQ),
+          cantidad: datos.cantidad,
+        })),
+      },
+      ventas: {
+        totalQ: this.redondear(ventasTotalQ),
+        cantidad: ventas.length,
+        porProducto: Array.from(porProductoMap.entries())
+          .map(([nombre, datos]) => ({ nombre, cantidad: datos.cantidad, totalQ: this.redondear(datos.totalQ) }))
+          .sort((a, b) => b.totalQ - a.totalQ),
+      },
+      netoQ: this.redondear(ingresosTotalQ - gastosTotalQ),
+    };
+  }
+
+  private redondear(monto: number): number {
+    return Math.round(monto * 100) / 100;
   }
 
   async ocupacion(desde: string, hasta: string) {

@@ -72,6 +72,16 @@ enum TipoPagoReferencia {
   EQUIPO
   MENSUALIDAD
   VENTA
+  ARBITRO
+  MANUAL
+}
+
+// Motivo con el que se cancelo una reserva. CLIMA marca las cancelaciones por
+// lluvia/condiciones de cancha (sin penalidad, no cuentan como no-show del
+// cliente); OTRO es el default de cualquier cancelacion manual.
+enum MotivoCancelacion {
+  CLIMA
+  OTRO
 }
 
 enum ProductoCategoria {
@@ -170,6 +180,7 @@ model Reserva {
   horaInicioMin Int           // minutos desde medianoche
   horaFinMin    Int
   estado        EstadoReserva @default(PENDIENTE_PAGO)
+  motivoCancelacion MotivoCancelacion?  // solo cuando estado=CANCELADA
   tipo          TipoReserva   @default(NORMAL)
   formaPago     FormaPago
   precioTotalQ  Decimal       @db.Decimal(10, 2)
@@ -220,6 +231,11 @@ model Pago {
   codigoAutorizacion String?          // autorizacion de POS fisico, solo cuando gateway=TARJETA
   redirectUrl      String?
   numeroRecibo     String?            @unique // solo cobros en sede (efectivo/tarjeta); ver PagosService.generarNumeroRecibo
+  // Etiqueta del concepto al momento del cobro (mismo criterio que
+  // VentaItem.nombreSnapshot): renombrar un ConceptoPago o un Arbitro no
+  // reescribe los recibos ya emitidos.
+  conceptoSnapshot String?
+  nota             String?            // detalle libre, ej. partido arbitrado
   confirmadoEn     DateTime?
   creadoEn         DateTime           @default(now())
 
@@ -443,4 +459,32 @@ model Gasto {
 
   @@index([fecha])
   @@map("gastos")
+}
+
+// ---------- Cobros manuales en sede: arbitros y conceptos (Fase 7) ----------
+
+/// Arbitro al que se le paga el servicio de arbitraje. El pago vive en Pago
+/// (tipoReferencia=ARBITRO, referenciaId=este id), igual que EQUIPO/MENSUALIDAD,
+/// asi que el historial por arbitro se consulta filtrando la tabla de pagos.
+model Arbitro {
+  id       String   @id @default(uuid())
+  nombre   String
+  telefono String?
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now())
+
+  @@map("arbitros")
+}
+
+/// Catalogo editable de conceptos de cobro manual (pago especial y los
+/// "otros" por definir). Se edita desde /admin/pagos sin necesidad de un
+/// deploy; nunca se borra (se desactiva), porque los Pago historicos lo
+/// referencian via referenciaId.
+model ConceptoPago {
+  id       String   @id @default(uuid())
+  nombre   String
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now())
+
+  @@map("conceptos_pago")
 }

@@ -1,6 +1,7 @@
 import * as ExcelJS from 'exceljs';
 import {
   ExcelExportService,
+  ReporteCierreParaExportar,
   ReporteIngresosParaExportar,
   ReporteMorosidadParaExportar,
 } from './excel-export.service';
@@ -21,6 +22,28 @@ describe('ExcelExportService', () => {
       { fecha: '2026-07-20', totalQ: 550 },
       { fecha: '2026-07-21', totalQ: 150 },
     ],
+  };
+
+
+  const cierre: ReporteCierreParaExportar = {
+    desde: '2026-10-27',
+    hasta: '2026-10-27',
+    ingresos: {
+      totalQ: 950,
+      cantidad: 4,
+      porCategoria: [
+        { etiqueta: 'Reservas de cancha', totalQ: 600, cantidad: 2 },
+        { etiqueta: 'Servicio de arbitraje', totalQ: 200, cantidad: 1 },
+        { etiqueta: 'Venta de productos', totalQ: 150, cantidad: 1 },
+      ],
+      porMetodo: [
+        { gateway: 'EFECTIVO', totalQ: 750, cantidad: 3 },
+        { gateway: 'TARJETA', totalQ: 200, cantidad: 1 },
+      ],
+    },
+    gastos: { totalQ: 300, porCategoria: [{ categoria: 'SUMINISTROS', totalQ: 300, cantidad: 1 }] },
+    ventas: { totalQ: 150, cantidad: 1, porProducto: [{ nombre: 'Camiseta', cantidad: 1, totalQ: 150 }] },
+    netoQ: 650,
   };
 
   it('genera un .xlsx real (magic bytes ZIP) no vacio', async () => {
@@ -49,6 +72,23 @@ describe('ExcelExportService', () => {
     const porModulo = wb.getWorksheet('Por modulo')!;
     expect(porModulo.getRow(2).getCell(1).value).toBe('Reservas');
     expect(porModulo.getRow(2).getCell(2).value).toBe(550);
+  });
+
+  it('el cierre de caja expone neto, gastos y tienda sin doble conteo', async () => {
+    const buffer = await service.generarReporteCierre(cierre);
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as any);
+
+    const resumen = wb.getWorksheet('Resumen')!;
+    expect(resumen.getRow(3).getCell(2).value).toBe(950); // ingresos
+    expect(resumen.getRow(5).getCell(2).value).toBe(300); // gastos
+    // El neto es ingresos - gastos: la venta de tienda NO se vuelve a sumar.
+    expect(resumen.getRow(6).getCell(2).value).toBe(650);
+    expect(resumen.getRow(7).getCell(2).value).toBe(150); // tienda, informativo
+
+    expect(wb.getWorksheet('Metodos de pago')!.getRow(2).getCell(1).value).toBe('EFECTIVO');
+    expect(wb.getWorksheet('Tienda')!.getRow(2).getCell(1).value).toBe('Camiseta');
   });
 
   it('genera el reporte de morosidad, incluso vacio (sin detalle)', async () => {

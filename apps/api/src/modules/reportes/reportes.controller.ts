@@ -37,6 +37,37 @@ export class ReportesController {
     return this.reportesService.morosidad(diasVencimiento ? Number(diasVencimiento) : undefined);
   }
 
+  @ApiOperation({ summary: 'Cierre de caja del periodo (pagos + gastos + tienda)' })
+  @Get('cierre')
+  cierre(@Query() query: ReporteQueryDto) {
+    return this.reportesService.cierre(query.desde, query.hasta);
+  }
+
+  @ApiOperation({ summary: 'Exportar el cierre de caja a Excel o PDF' })
+  @Get('cierre/exportar')
+  async exportarCierre(
+    @Query() query: ReporteQueryDto,
+    @Query('formato') formato: 'excel' | 'pdf' = 'pdf',
+    @Res() res: Response,
+  ) {
+    const reporte = await this.reportesService.cierre(query.desde, query.hasta);
+    const nombreArchivo =
+      query.desde === query.hasta ? `Cierre de caja ${query.desde}` : `Cierre de caja ${query.desde} a ${query.hasta}`;
+
+    if (formato === 'excel') {
+      const buffer = await this.excelExport.generarReporteCierre(reporte);
+      this.enviarArchivo(
+        res,
+        buffer,
+        `${nombreArchivo}.xlsx`,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+    } else {
+      const buffer = await this.pdfExport.generarReporteCierre(reporte);
+      this.enviarArchivo(res, buffer, `${nombreArchivo}.pdf`, 'application/pdf');
+    }
+  }
+
   @ApiOperation({ summary: 'Exportar ingresos a Excel o PDF' })
   @Get('ingresos/exportar')
   async exportarIngresos(

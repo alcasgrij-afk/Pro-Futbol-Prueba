@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { EstadoReserva, FormaPago, GatewayPago, TipoCancha, TipoReserva, type CanchaDTO, type ReservaDTO } from '@profutbol/shared-types';
+import { EstadoReserva, FormaPago, GatewayPago, MotivoCancelacion, TipoCancha, TipoReserva, type CanchaDTO, type ReservaDTO } from '@profutbol/shared-types';
 import { api, ApiError, type PagoDetalle } from '../../../lib/api-client';
 import { hoyISO } from '../../../lib/fechas';
 import ConfirmarModal from '../../../components/ConfirmarModal';
 import ReciboImprimible from '../../../components/ReciboImprimible';
+import CobrarSaldoModal from '../../../components/CobrarSaldoModal';
+import ClimaModal from '../../../components/ClimaModal';
 
 // La cancha en este endpoint trae mas campos que CanchaDTO (horario de
 // operacion); se piden directo con fetch (igual que WeekDatePicker, que ya
@@ -107,8 +109,11 @@ export default function CajaPage() {
   const [menu, setMenu] = useState<{ x: number; y: number; reserva: ReservaDTO } | null>(null);
   const [modificarModal, setModificarModal] = useState<ReservaDTO | null>(null);
   const [eliminarModal, setEliminarModal] = useState<ReservaDTO | null>(null);
+  const [climaModal, setClimaModal] = useState<ReservaDTO | null>(null);
+  const [saldoModal, setSaldoModal] = useState<ReservaDTO | null>(null);
   const [accionCargando, setAccionCargando] = useState(false);
   const [recibo, setRecibo] = useState<PagoDetalle | null>(null);
+  const [reciboNota, setReciboNota] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     fetch('/api/canchas')
@@ -193,6 +198,22 @@ export default function CajaPage() {
     try {
       await api.cancelarReserva(eliminarModal.id);
       setEliminarModal(null);
+      await cargarReservas();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo cancelar la reserva.');
+    } finally {
+      setAccionCargando(false);
+    }
+  }
+
+  // Caso especial de clima: se cancela dejando el motivo registrado (CLIMA no
+  // cuenta como no-show del cliente ni lleva penalidad). La otra salida del
+  // modal es reprogramar, que reusa el flujo de "Modificar" que ya existe.
+  async function cancelarPorClima(reserva: ReservaDTO) {
+    setAccionCargando(true);
+    try {
+      await api.cancelarReserva(reserva.id, MotivoCancelacion.CLIMA);
+      setClimaModal(null);
       await cargarReservas();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo cancelar la reserva.');
@@ -319,6 +340,11 @@ export default function CajaPage() {
                             {ETIQUETA_TIPO[r.tipo] ? `${ETIQUETA_TIPO[r.tipo]} · ` : ''}{r.cliente?.nombre ?? '—'}
                           </div>
                           <div className="truncate opacity-80">{r.horaInicio}–{r.horaFin}</div>
+                          {!!r.saldoQ && r.saldoQ > 0 && r.tipo === TipoReserva.NORMAL && (
+                            <div className="truncate font-semibold text-red-700">
+                              Debe Q{r.saldoQ} de Q{r.precioTotalQ}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -330,7 +356,7 @@ export default function CajaPage() {
         </div>
       )}
 
-      <p className="text-xs text-gray-500">Click en un espacio libre para cobrar en sede. Click derecho en una reserva para confirmar, modificar o eliminar.</p>
+      <p className="text-xs text-gray-500">Click en un espacio libre para cobrar en sede (completo o abono). Click derecho en una reserva para confirmar, cobrar el saldo, modificar, aplicar un caso de clima o eliminar.</p>
 
       {/* Menu contextual */}
       {menu && (
@@ -344,8 +370,19 @@ export default function CajaPage() {
               Confirmar
             </button>
           )}
+          {!!menu.reserva.saldoQ && menu.reserva.saldoQ > 0 && menu.reserva.tipo === TipoReserva.NORMAL && (
+            <button
+              onClick={() => { setSaldoModal(menu.reserva); setMenu(null); }}
+              className="w-full text-left px-3 py-2 hover:bg-green-50 font-semibold text-green-700"
+            >
+              Cobrar saldo (Q{menu.reserva.saldoQ})
+            </button>
+          )}
           <button onClick={() => { setModificarModal(menu.reserva); setMenu(null); }} className="w-full text-left px-3 py-2 hover:bg-gray-100">
             Modificar
+          </button>
+          <button onClick={() => { setClimaModal(menu.reserva); setMenu(null); }} className="w-full text-left px-3 py-2 hover:bg-sky-50 text-sky-700">
+            Caso especial: clima
           </button>
           <button onClick={() => { setEliminarModal(menu.reserva); setMenu(null); }} className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600">
             Eliminar
@@ -360,8 +397,9 @@ export default function CajaPage() {
           fecha={fecha}
           canchas={canchasMostradas}
           onClose={() => setCobroModal(null)}
-          onCobrado={(detalle) => {
+          onCobrado={(detalle, nota) => {
             setCobroModal(null);
+            setReciboNota(nota);
             setRecibo(detalle);
             cargarReservas();
           }}
@@ -393,6 +431,33 @@ export default function CajaPage() {
         />
       )}
 
+      {saldoModal && (
+        <CobrarSaldoModal
+          reserva={saldoModal}
+          onClose={() => setSaldoModal(null)}
+          onCobrado={(detalle, nota) => {
+            setSaldoModal(null);
+            setReciboNota(nota);
+            setRecibo(detalle);
+            cargarReservas();
+          }}
+        />
+      )}
+
+      {climaModal && (
+        <ClimaModal
+          reserva={climaModal}
+          cargando={accionCargando}
+          onClose={() => setClimaModal(null)}
+          onCancelar={() => cancelarPorClima(climaModal)}
+          onReprogramar={() => {
+            const reserva = climaModal;
+            setClimaModal(null);
+            setModificarModal(reserva);
+          }}
+        />
+      )}
+
       {eliminarModal && (
         <ConfirmarModal
           titulo="Eliminar reserva"
@@ -414,13 +479,21 @@ export default function CajaPage() {
             metodoPago={recibo.gateway === GatewayPago.TARJETA ? `Tarjeta · autorización ${recibo.codigoAutorizacion ?? ''}` : 'Efectivo'}
             numeroRecibo={recibo.numeroRecibo}
             lineas={[{ label: recibo.canchaNombre ?? 'Reserva de cancha', detalle: 'Reserva de cancha', valor: `Q${recibo.montoQ}` }]}
+            totalLabel={reciboNota ? 'Pagado ahora' : 'Total'}
             totalQ={recibo.montoQ}
+            nota={reciboNota}
           />
           <div className="print:hidden fixed bottom-4 right-4 flex gap-2 z-50">
             <button onClick={() => window.print()} className="min-h-11 px-4 bg-navy text-white rounded-md text-sm font-semibold shadow-lg">
               Imprimir recibo
             </button>
-            <button onClick={() => setRecibo(null)} className="min-h-11 px-4 bg-white border border-gray-300 rounded-md text-sm font-semibold shadow-lg">
+            <button
+              onClick={() => {
+                setRecibo(null);
+                setReciboNota(undefined);
+              }}
+              className="min-h-11 px-4 bg-white border border-gray-300 rounded-md text-sm font-semibold shadow-lg"
+            >
               Cerrar
             </button>
           </div>
@@ -443,7 +516,7 @@ function CobrarSedeModal({
   fecha: string;
   canchas: CanchaConHorario[];
   onClose: () => void;
-  onCobrado: (detalle: PagoDetalle) => void;
+  onCobrado: (detalle: PagoDetalle, nota?: string) => void;
 }) {
   const [form, setForm] = useState({
     canchaId,
@@ -457,6 +530,8 @@ function CobrarSedeModal({
   const [error, setError] = useState<string | null>(null);
   const [vip, setVip] = useState<{ esValorado: boolean; siguienteEsGratis: boolean } | null>(null);
   const [aplicarGratis, setAplicarGratis] = useState(false);
+  const [esAbono, setEsAbono] = useState(false);
+  const [abono, setAbono] = useState('');
 
   // Cliente Valorado (VIP): al completar el telefono (8 digitos) se consulta
   // si le toca la reserva gratis del ciclo (cada 6ta). Numero nuevo/sin VIP
@@ -484,6 +559,13 @@ function CobrarSedeModal({
 
   const slots = useMemo(() => generarSlots(canchas.find((c) => c.id === form.canchaId), fecha), [canchas, form.canchaId, fecha]);
 
+  // Precio de referencia para validar el abono. El precio real lo recalcula el
+  // backend al crear la reserva (y rechaza un abono mayor), esto es solo para
+  // no dejar que el personal escriba un monto imposible.
+  const precioSedeQ = canchas.find((c) => c.id === form.canchaId)?.precioSedeQ ?? 0;
+  const abonoNumero = Number(abono);
+  const abonoValido = !esAbono || (abonoNumero > 0 && abonoNumero <= precioSedeQ);
+
   function cambiarCancha(id: string) {
     const nuevosSlots = generarSlots(canchas.find((c) => c.id === id), fecha);
     setForm((f) => ({ ...f, canchaId: id, horaInicio: nuevosSlots.includes(f.horaInicio) ? f.horaInicio : (nuevosSlots[0] ?? f.horaInicio) }));
@@ -498,6 +580,10 @@ function CobrarSedeModal({
       setError('El código POS debe tener entre 6 y 12 dígitos.');
       return;
     }
+    if (esAbono && !abonoValido) {
+      setError(`El abono debe estar entre Q0.01 y Q${precioSedeQ}.`);
+      return;
+    }
     setCargando(true);
     setError(null);
     try {
@@ -510,8 +596,10 @@ function CobrarSedeModal({
         metodoPago: form.metodoPago,
         ...(form.metodoPago === GatewayPago.TARJETA ? { codigoAutorizacion: form.codigoAutorizacion } : {}),
         ...(aplicarGratis ? { gratis: true } : {}),
+        ...(esAbono && !aplicarGratis ? { montoQ: abonoNumero } : {}),
       });
-      onCobrado(detalle);
+      const restante = Math.round((precioSedeQ - abonoNumero) * 100) / 100;
+      onCobrado(detalle, esAbono && !aplicarGratis && restante > 0 ? `Saldo pendiente: Q${restante}` : undefined);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo cobrar la reserva.');
     } finally {
@@ -598,6 +686,42 @@ function CobrarSedeModal({
             ))}
           </div>
         </label>
+
+        {!aplicarGratis && (
+          <div className="rounded-md border border-gray-300 p-2 space-y-2">
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={esAbono}
+                onChange={(e) => {
+                  setEsAbono(e.target.checked);
+                  setAbono(e.target.checked ? String(precioSedeQ) : '');
+                }}
+              />
+              Abono (pago parcial) — la reserva queda confirmada y el saldo se cobra después
+            </label>
+            {esAbono && (
+              <>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  max={precioSedeQ}
+                  step="0.01"
+                  value={abono}
+                  onChange={(e) => setAbono(e.target.value)}
+                  className="w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+                />
+                <p className={`text-xs ${abonoValido ? 'text-gray-500' : 'text-red-600'}`}>
+                  Precio de la reserva: Q{precioSedeQ}
+                  {abonoValido && abonoNumero > 0
+                    ? ` · queda pendiente Q${Math.round((precioSedeQ - abonoNumero) * 100) / 100}`
+                    : ''}
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         {form.metodoPago === GatewayPago.TARJETA && (
           <label className="block text-xs font-medium text-gray-600">

@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { GastoCategoria, type GastoDTO, type ResumenGastosDTO } from '@profutbol/shared-types';
-import { api, ApiError, type PagoLedgerItem } from '../../../lib/api-client';
+import { GastoCategoria, GatewayPago, type GastoDTO, type ResumenGastosDTO } from '@profutbol/shared-types';
+import { api, ApiError, type PagoDetalle, type PagoLedgerItem } from '../../../lib/api-client';
 import { aISO, hoyISO } from '../../../lib/fechas';
 import ReciboImprimible from '../../../components/ReciboImprimible';
+import NuevoCobroModal from '../../../components/NuevoCobroModal';
+import CatalogosCobroTab from '../../../components/CatalogosCobroTab';
 
 const ETIQUETA_GATEWAY: Record<string, string> = {
   EFECTIVO: 'Efectivo',
@@ -29,23 +31,29 @@ const ETIQUETA_GASTO_CATEGORIA: Record<GastoCategoria, string> = {
   [GastoCategoria.OTROS]: 'Otros',
 };
 
+const ETIQUETA_TAB: Record<'pagos' | 'gastos' | 'catalogos', string> = {
+  pagos: 'Pagos',
+  gastos: 'Gastos',
+  catalogos: 'Catalogos',
+};
+
 export default function PagosPage() {
-  const [tab, setTab] = useState<'pagos' | 'gastos'>('pagos');
+  const [tab, setTab] = useState<'pagos' | 'gastos' | 'catalogos'>('pagos');
 
   return (
     <div className="space-y-4">
       <div className="flex gap-1 bg-white border border-gray-300 rounded-md p-1 w-fit print:hidden">
-        {(['pagos', 'gastos'] as const).map((t) => (
+        {(['pagos', 'gastos', 'catalogos'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`min-h-9 px-4 text-sm font-semibold rounded ${tab === t ? 'bg-navy text-white' : 'text-gray-600 hover:bg-gray-100'}`}
           >
-            {t === 'pagos' ? 'Pagos' : 'Gastos'}
+            {ETIQUETA_TAB[t]}
           </button>
         ))}
       </div>
-      {tab === 'pagos' ? <PagosTab /> : <GastosTab />}
+      {tab === 'pagos' ? <PagosTab /> : tab === 'gastos' ? <GastosTab /> : <CatalogosCobroTab />}
     </div>
   );
 }
@@ -57,6 +65,9 @@ function PagosTab() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mostrarRecibo, setMostrarRecibo] = useState(false);
+  const [nuevoCobro, setNuevoCobro] = useState(false);
+  const [recibo, setRecibo] = useState<PagoDetalle | null>(null);
+  const [recargar, setRecargar] = useState(0);
 
   useEffect(() => {
     setCargando(true);
@@ -66,7 +77,13 @@ function PagosTab() {
       .then(setPagos)
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los pagos.'))
       .finally(() => setCargando(false));
-  }, [desde, hasta]);
+  }, [desde, hasta, recargar]);
+
+  // Mismo patron que Caja: al llegar el detalle del cobro se dispara la
+  // impresion del recibo sin que el personal tenga que hacer nada mas.
+  useEffect(() => {
+    if (recibo) window.print();
+  }, [recibo]);
 
   const totalCompletadoQ = useMemo(
     () => (pagos ?? []).filter((p) => p.estado === 'COMPLETADO').reduce((acc, p) => acc + p.montoQ, 0),
@@ -78,6 +95,12 @@ function PagosTab() {
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <h1 className="text-lg font-bold text-navy">Pagos</h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setNuevoCobro(true)}
+            className="min-h-11 px-4 bg-green-600 text-white rounded-md text-sm font-bold hover:bg-green-700"
+          >
+            + Nuevo cobro
+          </button>
           <input type="date" aria-label="Desde" value={desde} onChange={(e) => setDesde(e.target.value)} className="min-h-11 rounded-md border border-gray-500 px-3 text-sm" />
           <span className="text-sm text-gray-500">a</span>
           <input type="date" aria-label="Hasta" value={hasta} onChange={(e) => setHasta(e.target.value)} className="min-h-11 rounded-md border border-gray-500 px-3 text-sm" />
@@ -132,6 +155,43 @@ function PagosTab() {
             </tfoot>
           </table>
         </div>
+      )}
+
+      {nuevoCobro && (
+        <NuevoCobroModal
+          onClose={() => setNuevoCobro(false)}
+          onCobrado={(detalle) => {
+            setNuevoCobro(false);
+            setRecibo(detalle);
+            setRecargar((n) => n + 1);
+          }}
+        />
+      )}
+
+      {recibo && (
+        <>
+          <ReciboImprimible
+            titulo="Recibo de cobro"
+            subtitulo={recibo.descripcion ?? undefined}
+            cliente={recibo.clienteNombre ? { nombre: recibo.clienteNombre } : undefined}
+            metodoPago={
+              recibo.gateway === GatewayPago.TARJETA
+                ? `Tarjeta · autorización ${recibo.codigoAutorizacion ?? ''}`
+                : 'Efectivo'
+            }
+            numeroRecibo={recibo.numeroRecibo}
+            lineas={[{ label: recibo.descripcion ?? 'Cobro en sede', valor: `Q${recibo.montoQ}` }]}
+            totalQ={recibo.montoQ}
+          />
+          <div className="print:hidden fixed bottom-4 right-4 flex gap-2 z-50">
+            <button onClick={() => window.print()} className="min-h-11 px-4 bg-navy text-white rounded-md text-sm font-semibold shadow-lg">
+              Imprimir recibo
+            </button>
+            <button onClick={() => setRecibo(null)} className="min-h-11 px-4 bg-white border border-gray-300 rounded-md text-sm font-semibold shadow-lg">
+              Cerrar
+            </button>
+          </div>
+        </>
       )}
 
       {mostrarRecibo && pagos && (
