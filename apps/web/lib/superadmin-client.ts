@@ -65,10 +65,12 @@ export interface SuperadminOverview {
     tasaAciertoPct: number | null;
     clavesEvictadas: number | null;
     comandosProcesados: number | null;
+    maxmemoryPolicy: string | null;
+    advertenciaEviction: boolean;
   };
   colas: {
-    reservas: { waiting: number; active: number; failed: number; delayed: number; estado: 'ok' | 'warn'; fallidos: JobFallido[] };
-    academia: { waiting: number; active: number; failed: number; delayed: number; estado: 'ok' | 'warn'; fallidos: JobFallido[] };
+    reservas: { waiting: number; active: number; failed: number; delayed: number; estado: 'ok' | 'warn'; fallidos: JobFallido[]; ultimaActividad: string | null };
+    academia: { waiting: number; active: number; failed: number; delayed: number; estado: 'ok' | 'warn'; fallidos: JobFallido[]; ultimaActividad: string | null };
   };
   api: { estado: 'ok'; uptimeSegundos: number; memoriaRssMb: number };
   pagos: {
@@ -76,7 +78,9 @@ export interface SuperadminOverview {
     ultimas24h: { PENDIENTE: number; COMPLETADO: number; FALLIDO: number; CANCELADO: number };
     pendientesEstancados: number;
     estancados: PagoEstancado[];
+    ultimaActividad: string | null;
   };
+  estadoDesde: Record<string, { estado: string; desde: number }>;
 }
 
 export interface LineaLog {
@@ -92,6 +96,8 @@ export interface PuntoHistorial {
   dbEstado: 'ok' | 'warn' | 'critical';
   redisLatenciaMs: number | null;
   redisEstado: 'ok' | 'warn' | 'critical';
+  redisComandosPorSegundo: number | null;
+  redisTasaAciertoVentanaPct: number | null;
   colasFallidos: number;
   colasEstado: 'ok' | 'warn';
   pagosEstancados: number;

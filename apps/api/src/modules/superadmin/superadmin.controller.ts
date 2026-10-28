@@ -52,8 +52,9 @@ export class SuperadminController {
   @Public()
   @UseGuards(SuperadminAuthGuard)
   @Get('monitoring/overview')
-  overview() {
-    return this.superadminService.overview();
+  async overview() {
+    const datos = await this.superadminService.overview();
+    return { ...datos, estadoDesde: this.historialService.obtenerEstadoDesde() };
   }
 
   @Public()

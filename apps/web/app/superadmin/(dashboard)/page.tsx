@@ -37,17 +37,36 @@ function SparklineConLabel({
   data,
   estado,
   label,
+  umbral,
 }: {
   data: number[];
   estado: 'ok' | 'warn' | 'critical';
   label: string;
+  umbral?: number;
 }) {
+  const ultimo = data[data.length - 1];
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <Sparkline data={data} estado={estado} />
-      <span className="text-[9px] text-slate-600">{label}</span>
+      <Sparkline data={data} estado={estado} umbral={umbral} />
+      <span className="text-[9px] text-slate-600">
+        {label} · últ. 2h{ultimo !== undefined ? ` · ${ultimo}` : ''}
+      </span>
     </div>
   );
+}
+
+/** "hace 5 min" / "hace 2h" / "hace 3d" a partir de un timestamp en ms. */
+function haceTiempo(timestampMs: number): string {
+  const min = Math.floor((Date.now() - timestampMs) / 60000);
+  if (min < 1) return 'hace instantes';
+  if (min < 60) return `hace ${min} min`;
+  const horas = Math.floor(min / 60);
+  if (horas < 24) return `hace ${horas}h`;
+  return `hace ${Math.floor(horas / 24)}d`;
+}
+
+function haceTiempoISO(iso: string | null): string {
+  return iso ? haceTiempo(new Date(iso).getTime()) : 'sin registros';
 }
 
 function Badge({ estado }: { estado: 'ok' | 'warn' | 'critical' }) {
@@ -188,6 +207,8 @@ export default function SuperadminOverviewPage() {
   if (error) return <p className="text-red-400">{error}</p>;
   if (!data) return <p className="text-slate-400">Cargando...</p>;
 
+  const ultimaRedis = historial[historial.length - 1];
+
   const serie = {
     db: historial.map((p) => p.dbConexiones ?? 0),
     redis: historial.map((p) => p.redisLatenciaMs ?? 0),
@@ -216,7 +237,14 @@ export default function SuperadminOverviewPage() {
           icon={Database}
           titulo="Base de datos"
           estado={data.database.estado}
-          sparkline={<SparklineConLabel data={serie.db} estado={data.database.estado} label="conexiones" />}
+          sparkline={
+            <SparklineConLabel
+              data={serie.db}
+              estado={data.database.estado}
+              label="conexiones"
+              umbral={data.database.conexiones ? data.database.conexiones.max * 0.8 : undefined}
+            />
+          }
           expandido={expandidos.has('database')}
           onToggle={() => alternarTile('database')}
           detalle={
@@ -279,13 +307,19 @@ export default function SuperadminOverviewPage() {
         >
           {data.database.conexiones && (
             <p>
-              Conexiones: {data.database.conexiones.usadas} / {data.database.conexiones.max}
+              Conexiones: {data.database.conexiones.usadas} / {data.database.conexiones.max} (no cuenta la
+              conexión de este panel · alerta ≥{Math.round(data.database.conexiones.max * 0.8)})
             </p>
           )}
           {data.database.consultaMasLenta && (
             <p>
               Consulta más lenta activa: {data.database.consultaMasLenta.duracionSegundos}s (pid{' '}
               {data.database.consultaMasLenta.pid})
+            </p>
+          )}
+          {data.estadoDesde.database && (
+            <p className="text-xs text-slate-500">
+              {ESTILOS_ESTADO[data.database.estado].label} desde {haceTiempo(data.estadoDesde.database.desde)}
             </p>
           )}
         </Tile>
@@ -298,26 +332,46 @@ export default function SuperadminOverviewPage() {
           expandido={expandidos.has('redis')}
           onToggle={() => alternarTile('redis')}
           detalle={
-            <div className="space-y-1">
+            <div className="space-y-1 text-xs">
+              {data.redis.advertenciaEviction && (
+                <p className="text-amber-300 font-semibold">
+                  ⚠ Política de eviction: {data.redis.maxmemoryPolicy}. BullMQ puede perder jobs bajo presión de
+                  memoria sin <code>noeviction</code>. Recomendado: <code>CONFIG SET maxmemory-policy noeviction</code>.
+                </p>
+              )}
               <p>
                 Uptime:{' '}
                 {data.redis.uptimeSegundos != null
                   ? `${Math.floor(data.redis.uptimeSegundos / 3600)}h ${Math.floor((data.redis.uptimeSegundos % 3600) / 60)}m`
                   : '—'}
               </p>
+              <p>
+                Última ventana (30s): {ultimaRedis?.redisComandosPorSegundo ?? '—'} comandos/s
+                {ultimaRedis?.redisTasaAciertoVentanaPct != null ? `, acierto ${ultimaRedis.redisTasaAciertoVentanaPct}%` : ''}
+              </p>
+              <p>
+                Desde arranque (lifetime): {data.redis.comandosProcesados ?? '—'} comandos, acierto{' '}
+                {data.redis.tasaAciertoPct != null ? `${data.redis.tasaAciertoPct}%` : '—'} — no refleja la actividad reciente.
+              </p>
               <p>Memoria pico: {data.redis.memoriaPicoMb ?? '—'} MB</p>
-              <p>Tasa de acierto: {data.redis.tasaAciertoPct != null ? `${data.redis.tasaAciertoPct}%` : '—'}</p>
               <p>Claves evictadas: {data.redis.clavesEvictadas ?? '—'}</p>
-              <p>Comandos procesados: {data.redis.comandosProcesados ?? '—'}</p>
-              <p className="text-xs text-slate-500 pt-2">
+              {data.estadoDesde.redis && (
+                <p className="text-slate-500">
+                  {ESTILOS_ESTADO[data.redis.estado].label} desde {haceTiempo(data.estadoDesde.redis.desde)}
+                </p>
+              )}
+              <p className="text-slate-500 pt-2">
                 Sin acciones correctivas disponibles desde el panel; reiniciar Redis es una operación de infraestructura.
               </p>
             </div>
           }
         >
-          <p>Latencia: {data.redis.latenciaMs ?? '—'} ms</p>
+          <p>Latencia: {data.redis.latenciaMs ?? '—'} ms (alerta &gt;200ms)</p>
           <p>Memoria usada: {data.redis.memoriaUsadaMb ?? '—'} MB</p>
           <p>Clientes conectados: {data.redis.clientesConectados ?? '—'}</p>
+          {data.redis.advertenciaEviction && (
+            <p className="text-amber-400 font-semibold">⚠ Eviction policy sin noeviction</p>
+          )}
         </Tile>
 
         <Tile
@@ -382,16 +436,22 @@ export default function SuperadminOverviewPage() {
               {data.colas.reservas.fallidos.length === 0 && data.colas.academia.fallidos.length === 0 && (
                 <p className="text-xs text-slate-500">Sin jobs fallidos.</p>
               )}
+              {data.estadoDesde.colas && (
+                <p className="text-xs text-slate-500">
+                  {ESTILOS_ESTADO[data.estadoDesde.colas.estado as 'ok' | 'warn' | 'critical'].label} desde{' '}
+                  {haceTiempo(data.estadoDesde.colas.desde)}
+                </p>
+              )}
             </div>
           }
         >
           <p>
             Reservas: {data.colas.reservas.waiting} esperando, {data.colas.reservas.active} activos,{' '}
-            {data.colas.reservas.failed} fallidos
+            {data.colas.reservas.failed} fallidos · último completado {haceTiempoISO(data.colas.reservas.ultimaActividad)}
           </p>
           <p>
             Academia: {data.colas.academia.waiting} esperando, {data.colas.academia.active} activos,{' '}
-            {data.colas.academia.failed} fallidos
+            {data.colas.academia.failed} fallidos · último completado {haceTiempoISO(data.colas.academia.ultimaActividad)}
           </p>
         </Tile>
 
@@ -450,6 +510,7 @@ export default function SuperadminOverviewPage() {
           <p>Completados: {data.pagos.ultimas24h.COMPLETADO}</p>
           <p>Fallidos: {data.pagos.ultimas24h.FALLIDO}</p>
           <p>Pendientes: {data.pagos.ultimas24h.PENDIENTE}</p>
+          <p className="text-slate-400">Último pago (cualquier estado): {haceTiempoISO(data.pagos.ultimaActividad)}</p>
           {data.pagos.pendientesEstancados > 0 && (
             <p className="text-amber-300 font-semibold">
               {data.pagos.pendientesEstancados} pendientes estancados (&gt;15 min)

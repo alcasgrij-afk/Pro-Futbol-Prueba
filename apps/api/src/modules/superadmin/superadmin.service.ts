@@ -88,6 +88,9 @@ export class SuperadminService {
       dbEstado: database.estado,
       redisLatenciaMs: redis.latenciaMs,
       redisEstado: redis.estado,
+      redisComandosProcesados: redis.comandosProcesados,
+      redisHits: redis.hits,
+      redisMisses: redis.misses,
       colasFallidos: colas.reservas.fallidos.length + colas.academia.fallidos.length,
       colasEstado: colas.reservas.estado === 'warn' || colas.academia.estado === 'warn' ? 'warn' : 'ok',
       pagosEstancados: pagos.pendientesEstancados,
@@ -101,7 +104,7 @@ export class SuperadminService {
         `SELECT setting FROM pg_settings WHERE name = 'max_connections'`,
       );
       const [{ count: conexionesUsadas }] = await this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
-        `SELECT count(*)::bigint AS count FROM pg_stat_activity WHERE datname = current_database()`,
+        `SELECT count(*)::bigint AS count FROM pg_stat_activity WHERE datname = current_database() AND pid != pg_backend_pid()`,
       );
       const bloqueadas = await this.prisma.$queryRawUnsafe<ConsultaBloqueada[]>(
         `SELECT pid, query, pg_blocking_pids(pid) AS "bloqueadaPorPids"
@@ -170,8 +173,24 @@ export class SuperadminService {
       const misses = this.extraerInfoNumerico(info, 'keyspace_misses');
       const tasaAciertoPct = hits + misses > 0 ? Math.round((hits / (hits + misses)) * 1000) / 10 : null;
 
+      // BullMQ necesita que Redis nunca descarte sus llaves bajo presion de
+      // memoria. Sin maxmemory-policy=noeviction (y solo importa si hay un
+      // tope de memoria configurado), Redis puede tirar jobs en silencio.
+      // Try/catch propio: algunos Redis administrados restringen CONFIG GET,
+      // y eso no deberia tumbar el chequeo de Redis completo.
+      let maxmemoryPolicy: string | null = null;
+      let advertenciaEviction = false;
+      try {
+        const [, policy] = (await this.conTimeout(this.redis.client.config('GET', 'maxmemory-policy'))) as string[];
+        const [, maxmemoryStr] = (await this.conTimeout(this.redis.client.config('GET', 'maxmemory'))) as string[];
+        maxmemoryPolicy = policy;
+        advertenciaEviction = Number(maxmemoryStr) > 0 && policy !== 'noeviction';
+      } catch {
+        // CONFIG GET restringido (ej. Redis administrado); sin dato, sin advertencia.
+      }
+
       return {
-        estado: (latenciaMs > 200 ? 'warn' : 'ok') as Estado,
+        estado: (latenciaMs > 200 || advertenciaEviction ? 'warn' : 'ok') as Estado,
         latenciaMs,
         memoriaUsadaMb: Math.round(memoriaUsadaMb * 10) / 10,
         clientesConectados,
@@ -180,6 +199,10 @@ export class SuperadminService {
         tasaAciertoPct,
         clavesEvictadas,
         comandosProcesados,
+        hits,
+        misses,
+        maxmemoryPolicy,
+        advertenciaEviction,
       };
     } catch {
       return {
@@ -192,6 +215,10 @@ export class SuperadminService {
         tasaAciertoPct: null,
         clavesEvictadas: null,
         comandosProcesados: null,
+        hits: null,
+        misses: null,
+        maxmemoryPolicy: null,
+        advertenciaEviction: false,
       };
     }
   }
@@ -205,20 +232,23 @@ export class SuperadminService {
     const vacio: Record<string, number> = { waiting: 0, active: 0, failed: 0, delayed: 0 };
     const estadoDe = (counts: Record<string, number>): Estado => (counts.failed > 0 ? 'warn' : 'ok');
 
-    const [reservas, academia, fallidosReservas, fallidosAcademia] = await Promise.all([
-      this.conTimeout(this.reservasQueue.getJobCounts('waiting', 'active', 'failed', 'delayed')).catch(() => null),
-      this.conTimeout(this.academiaQueue.getJobCounts('waiting', 'active', 'failed', 'delayed')).catch(() => null),
-      this.obtenerJobsFallidos(this.reservasQueue),
-      this.obtenerJobsFallidos(this.academiaQueue),
-    ]);
+    const [reservas, academia, fallidosReservas, fallidosAcademia, ultimaReservas, ultimaAcademia] =
+      await Promise.all([
+        this.conTimeout(this.reservasQueue.getJobCounts('waiting', 'active', 'failed', 'delayed')).catch(() => null),
+        this.conTimeout(this.academiaQueue.getJobCounts('waiting', 'active', 'failed', 'delayed')).catch(() => null),
+        this.obtenerJobsFallidos(this.reservasQueue),
+        this.obtenerJobsFallidos(this.academiaQueue),
+        this.obtenerUltimaActividad(this.reservasQueue),
+        this.obtenerUltimaActividad(this.academiaQueue),
+      ]);
 
     return {
       reservas: reservas
-        ? { ...reservas, estado: estadoDe(reservas), fallidos: fallidosReservas }
-        : { ...vacio, estado: 'critical' as Estado, fallidos: [] },
+        ? { ...reservas, estado: estadoDe(reservas), fallidos: fallidosReservas, ultimaActividad: ultimaReservas }
+        : { ...vacio, estado: 'critical' as Estado, fallidos: [], ultimaActividad: null },
       academia: academia
-        ? { ...academia, estado: estadoDe(academia), fallidos: fallidosAcademia }
-        : { ...vacio, estado: 'critical' as Estado, fallidos: [] },
+        ? { ...academia, estado: estadoDe(academia), fallidos: fallidosAcademia, ultimaActividad: ultimaAcademia }
+        : { ...vacio, estado: 'critical' as Estado, fallidos: [], ultimaActividad: null },
     };
   }
 
@@ -230,6 +260,12 @@ export class SuperadminService {
       failedReason: job.failedReason ?? null,
       attemptsMade: job.attemptsMade,
     }));
+  }
+
+  /** Ultimo job completado: distingue "cola tranquila" de "worker caido" (0 activos no dice cual de las dos es). */
+  private async obtenerUltimaActividad(queue: Queue): Promise<string | null> {
+    const [ultimo] = await this.conTimeout(queue.getJobs(['completed'], 0, 0)).catch(() => []);
+    return ultimo?.finishedOn ? new Date(ultimo.finishedOn).toISOString() : null;
   }
 
   // BullMQ usa maxRetriesPerRequest: null en su conexion (lo exige la libreria
@@ -277,9 +313,23 @@ export class SuperadminService {
     ]);
     const filasEstancadas: PagoEstancado[] = filasEstancadasRaw.map((p) => ({ ...p, montoQ: Number(p.montoQ) }));
 
+    // Si no hay pagos en 24h, "ultimo pago" puede seguir siendo de hace dias
+    // (dato crudo, sin inventar una heuristica de horario laboral) para que
+    // la persona que mira el panel distinga "noche tranquila" de "checkout roto".
+    const ultimoPago = await this.prisma.pago.findFirst({
+      orderBy: { creadoEn: 'desc' },
+      select: { creadoEn: true },
+    });
+
     let estado: Estado = 'ok';
     if (porEstado.FALLIDO > 0 || pendientesEstancados > 0) estado = 'warn';
 
-    return { estado, ultimas24h: porEstado, pendientesEstancados, estancados: filasEstancadas };
+    return {
+      estado,
+      ultimas24h: porEstado,
+      pendientesEstancados,
+      estancados: filasEstancadas,
+      ultimaActividad: ultimoPago?.creadoEn.toISOString() ?? null,
+    };
   }
 }
