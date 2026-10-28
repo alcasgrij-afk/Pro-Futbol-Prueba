@@ -169,6 +169,8 @@ export interface ClienteDTO {
   nombre: string;
   telefono: string;
   email?: string | null;
+  activo: boolean;
+  creadoEn: string;
 }
 
 /** Caja: resultado de buscar un cliente por telefono + su estado VIP. */
@@ -177,6 +179,19 @@ export interface EstadoClienteValoradoDTO {
   esValorado: boolean;
   totalReservas: number;
   siguienteEsGratis: boolean;
+}
+
+/** /admin/clientes: fila de la lista, con el estado VIP ya calculado en lote. */
+export interface ClienteListadoDTO extends ClienteDTO {
+  esValorado: boolean;
+  totalReservas: number;
+  siguienteEsGratis: boolean;
+}
+
+export interface ActualizarClienteInput {
+  nombre?: string;
+  telefono?: string;
+  email?: string;
 }
 
 export interface ReservaDTO {

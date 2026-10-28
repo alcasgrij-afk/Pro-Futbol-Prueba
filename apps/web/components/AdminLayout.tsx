@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { CalendarBlank, ChartBar, CreditCard, GraduationCap, House, Storefront, Trophy, Wallet } from '@phosphor-icons/react';
+import { CalendarBlank, ChartBar, CreditCard, GraduationCap, House, Storefront, Trophy, Users, Wallet } from '@phosphor-icons/react';
 import { borrarToken, obtenerToken } from '../lib/api-client';
 
 const NAV = [
@@ -14,6 +14,7 @@ const NAV = [
   { href: '/admin/caja', label: 'Caja', icon: Wallet, exacto: true },
   { href: '/admin/caja/productos', label: 'Tienda', icon: Storefront, exacto: false },
   { href: '/admin/pagos', label: 'Pagos', icon: CreditCard, exacto: false },
+  { href: '/admin/clientes', label: 'Clientes', icon: Users, exacto: false },
   { href: '/admin/torneos', label: 'Torneos', icon: Trophy, exacto: false },
   { href: '/admin/academia', label: 'Academia', icon: GraduationCap, exacto: false },
   { href: '/admin/reportes', label: 'Reportes', icon: ChartBar, exacto: false },

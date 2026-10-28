@@ -9,6 +9,42 @@ para que el equipo decida qué atacar y cuándo.
 > en `.claude/settings.json`) — no dejarlo acumular drift como pasó entre
 > 2026-09-24 y 2026-10-27 (11 commits de features/infra sin registrar aquí).
 
+## Resuelto (2026-10-28, módulo admin de Clientes + VIP)
+
+- **`/admin/clientes` — gap cerrado: antes del backend solo existía
+  `GET /clientes/buscar?telefono=` (Caja, solo lectura). No había lista, ni
+  edición, ni forma de desactivar un cliente, y — el hallazgo más
+  importante — **`ClienteValorado` nunca se escribía desde ningún lado del
+  código**: la promoción "6ta reserva gratis" tenía toda su lógica de cálculo
+  (`ClientesService.buscarConEstadoValorado`, ciclo de 6 sobre reservas
+  `CONFIRMADA`+`NORMAL` de todo el historial) pero ningún cliente real podía
+  llegar a activarla.
+- Nueva pantalla admin: lista con buscador (nombre o teléfono, debounced) +
+  toggle "mostrar inactivos", edición de nombre/teléfono/email, **otorgar/
+  quitar VIP manualmente** (crea o borra el registro `ClienteValorado`, con
+  confirmación al quitar) y **desactivar/activar** (decisión explícita del
+  usuario: es un soft-delete vía `Cliente.activo`, no un borrado real —
+  `Reserva`/`ReservaRecurrente`/`ClienteValorado` son `Restrict` hacia
+  `Cliente`, así que un hard delete falla en la DB para casi cualquier
+  cliente real; mismo patrón ya usado en Árbitros/Productos).
+- El estado VIP se adjunta **en lote** para toda la lista (2 consultas:
+  `clienteValorado.findMany` + `reserva.groupBy`, nunca una por fila) — mismo
+  patrón anti-N+1 ya usado en `PagosService.obtenerPagadas` y
+  `ReservasService.pagadoPorReserva`.
+- **El endpoint existente de Caja (`GET /clientes/buscar`) no se tocó** —
+  verificado end-to-end contra DB real que sigue devolviendo exactamente la
+  misma forma de respuesta.
+- **Verificado contra DB real**: migración `20261028000000_add_cliente_activo`
+  aplicada; usando un cliente de prueba ya existente (sin crear datos nuevos)
+  se probó listar/buscar (por nombre y por teléfono parcial), editar,
+  otorgar VIP, desactivar (confirmando que desaparece del listado de activos
+  pero sigue en el listado completo), quitar VIP dos veces (idempotente),
+  reactivar — y se confirmó que un cliente VIP **sembrado antes de esta
+  feature** (`seed-cliente-valorado-2`, 0 reservas) y otro con 6 reservas
+  confirmadas (`Cliente Prueba Caja`) calculan `siguienteEsGratis` igual que
+  antes. Datos de prueba revertidos a su estado original antes de commitear.
+  **162/162 tests** (+13 nuevos), lint limpio, build de ambas apps limpio.
+
 ## Resuelto (2026-10-27, cobro rápido en /pagos)
 
 - **`/admin/pagos` pasó de ser solo lectura a tener un flujo de cobro propio.**
@@ -754,5 +790,6 @@ verificación en browser.
 | CI/CD — hosting (sección 9) | Antes: "sin definir". Ahora: Render (API) + Vercel (web), ambos en vivo | ⚠️ hosting resuelto; `build-imagen-docker` eliminado (2026-10-27, no se usaba); sigue pendiente alerta de monitoreo para caída total de DB |
 | Dependabot alerts (sección 3.4) | Detección de vulnerabilidades en transitivas vía GitHub Security | ✅ confirmado activo (2026-10-27) |
 | Cobro rápido en `/pagos` (mensualidad/árbitro/conceptos), abono de reservas, caso clima en Caja, cierre de caja | Modal de 3 pasos + recibo auto-numerado; nuevos modelos `Arbitro`/`ConceptoPago`; saldo en vivo sin columna duplicada; reporte día/semana/mes exportable y compartible | ✅ resuelto (2026-10-27, commit `1728cec`): verificado contra DB real, 153/153 tests, ver sección nueva "Resuelto (2026-10-27, cobro rápido en /pagos)" |
+| Módulo admin de Clientes (`/admin/clientes`) + promo "6ta gratis" | Lista/editar/desactivar clientes; otorgar/quitar VIP manualmente (antes `ClienteValorado` nunca se creaba desde ningún lado) | ✅ resuelto (2026-10-28): verificado contra DB real, 162/162 tests, ver sección nueva "Resuelto (2026-10-28, módulo admin de Clientes + VIP)" |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO, ProductoDTO, VentaDTO, CrearVentaInput, GastoDTO, CrearGastoInput, ResumenGastosDTO, CobrarSedeInput, ReprogramarReservaInput, CrearReservaBloqueoInput, CrearReservaRecurrenteInput, EstadoClienteValoradoDTO, GatewayPago, MotivoCancelacion, ArbitroDTO, ConceptoPagoDTO, CobrarManualInput, CobrarAbonoInput, SaldoReservaDTO, ReporteCierreDTO, TipoPagoReferencia } from '@profutbol/shared-types';
+import type { ApiErrorResponse, LoginResponse, ReservaDTO, TorneoDTO, EquipoDTO, PartidoDTO, PosicionDTO, FormatoTorneo, EstadoTorneo, AlumnoDTO, AcademiaMensualidadDTO, AsistenciaDTO, ReporteIngresosDTO, ReporteOcupacionDTO, ReporteMorosidadDTO, ProductoDTO, VentaDTO, CrearVentaInput, GastoDTO, CrearGastoInput, ResumenGastosDTO, CobrarSedeInput, ReprogramarReservaInput, CrearReservaBloqueoInput, CrearReservaRecurrenteInput, EstadoClienteValoradoDTO, GatewayPago, MotivoCancelacion, ArbitroDTO, ConceptoPagoDTO, CobrarManualInput, CobrarAbonoInput, SaldoReservaDTO, ReporteCierreDTO, TipoPagoReferencia, ClienteListadoDTO, ActualizarClienteInput } from '@profutbol/shared-types';
 
 const TOKEN_KEY = 'profutbol_access_token';
 const REFRESH_KEY = 'profutbol_refresh_token';
@@ -174,6 +174,28 @@ export const api = {
   // "siguiente reserva gratis" al cobrar.
   buscarClientePorTelefono: (telefono: string) =>
     request<EstadoClienteValoradoDTO>(`/clientes/buscar?telefono=${encodeURIComponent(telefono)}`),
+
+  // ---- Clientes (admin, Fase 7) ----
+
+  listarClientes: (filtros: { q?: string; activo?: boolean } = {}) => {
+    const params = new URLSearchParams();
+    if (filtros.q) params.set('q', filtros.q);
+    if (filtros.activo !== undefined) params.set('activo', String(filtros.activo));
+    return request<ClienteListadoDTO[]>(`/clientes?${params.toString()}`);
+  },
+
+  obtenerCliente: (id: string) => request<ClienteListadoDTO>(`/clientes/${id}`),
+
+  actualizarCliente: (id: string, datos: ActualizarClienteInput) =>
+    request<ClienteListadoDTO>(`/clientes/${id}`, { method: 'PATCH', body: JSON.stringify(datos) }),
+
+  desactivarCliente: (id: string) => request<ClienteListadoDTO>(`/clientes/${id}/desactivar`, { method: 'PATCH' }),
+
+  activarCliente: (id: string) => request<ClienteListadoDTO>(`/clientes/${id}/activar`, { method: 'PATCH' }),
+
+  otorgarValorado: (id: string) => request<ClienteListadoDTO>(`/clientes/${id}/valorado`, { method: 'PATCH' }),
+
+  quitarValorado: (id: string) => request<ClienteListadoDTO>(`/clientes/${id}/valorado`, { method: 'DELETE' }),
 
   // ---- Caja: cobro en sede, productos, ventas y gastos (Fase 6) ----
 

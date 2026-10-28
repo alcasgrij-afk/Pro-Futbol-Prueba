@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { EstadoReserva, TipoReserva } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -50,6 +51,113 @@ export class ClientesService {
     const siguienteEsGratis = (totalReservas + 1) % RESERVAS_POR_CICLO_VIP === 0;
 
     return { cliente, esValorado: true, totalReservas, siguienteEsGratis };
+  }
+
+  /**
+   * /admin/clientes: lista con buscador (nombre o telefono) y filtro de
+   * activos. El estado VIP se adjunta en LOTE (2 consultas para toda la
+   * pagina, nunca una por fila) con el mismo criterio de
+   * buscarConEstadoValorado: ciclo de 6 sobre reservas CONFIRMADA+NORMAL.
+   */
+  async listar(filtros: { q?: string; activo?: boolean }) {
+    const clientes = await this.prisma.cliente.findMany({
+      where: {
+        ...(filtros.activo !== undefined ? { activo: filtros.activo } : {}),
+        ...(filtros.q
+          ? {
+              OR: [
+                { nombre: { contains: filtros.q, mode: 'insensitive' } },
+                { telefono: { contains: filtros.q } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { creadoEn: 'desc' },
+    });
+
+    return this.adjuntarEstadoValorado(clientes);
+  }
+
+  async obtenerPorId(id: string) {
+    const cliente = await this.prisma.cliente.findUnique({ where: { id } });
+    if (!cliente) throw new NotFoundException('Cliente no encontrado.');
+    const [conValorado] = await this.adjuntarEstadoValorado([cliente]);
+    return conValorado;
+  }
+
+  private async adjuntarEstadoValorado<T extends { id: string }>(clientes: T[]) {
+    const ids = clientes.map((c) => c.id);
+    if (ids.length === 0) return [];
+
+    const [valorados, conteos] = await Promise.all([
+      this.prisma.clienteValorado.findMany({ where: { clienteId: { in: ids } }, select: { clienteId: true } }),
+      this.prisma.reserva.groupBy({
+        by: ['clienteId'],
+        where: { clienteId: { in: ids }, estado: EstadoReserva.CONFIRMADA, tipo: TipoReserva.NORMAL },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const idsValorados = new Set(valorados.map((v) => v.clienteId));
+    const conteoPorCliente = new Map(conteos.map((c) => [c.clienteId, c._count._all]));
+
+    return clientes.map((cliente) => {
+      const esValorado = idsValorados.has(cliente.id);
+      const totalReservas = conteoPorCliente.get(cliente.id) ?? 0;
+      return {
+        ...cliente,
+        esValorado,
+        totalReservas,
+        siguienteEsGratis: esValorado && (totalReservas + 1) % RESERVAS_POR_CICLO_VIP === 0,
+      };
+    });
+  }
+
+  async actualizar(id: string, dto: { nombre?: string; telefono?: string; email?: string }) {
+    await this.obtenerPorId(id);
+    try {
+      return await this.prisma.cliente.update({
+        where: { id },
+        data: {
+          ...(dto.nombre !== undefined ? { nombre: dto.nombre } : {}),
+          ...(dto.telefono !== undefined ? { telefono: this.normalizarTelefono(dto.telefono) } : {}),
+          ...(dto.email !== undefined ? { email: dto.email } : {}),
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new BadRequestException('Ya existe otro cliente con ese telefono.');
+      }
+      throw err;
+    }
+  }
+
+  async desactivar(id: string) {
+    await this.obtenerPorId(id);
+    return this.prisma.cliente.update({ where: { id }, data: { activo: false } });
+  }
+
+  async activar(id: string) {
+    await this.obtenerPorId(id);
+    return this.prisma.cliente.update({ where: { id }, data: { activo: true } });
+  }
+
+  /** Otorga el estatus de Cliente Valorado (VIP). Idempotente. */
+  async otorgarValorado(id: string) {
+    await this.obtenerPorId(id);
+    await this.prisma.clienteValorado.upsert({
+      where: { clienteId: id },
+      create: { clienteId: id },
+      update: {},
+    });
+    return this.obtenerPorId(id);
+  }
+
+  /** Quita el estatus VIP. Idempotente: no falla si ya no era VIP. */
+  async quitarValorado(id: string) {
+    await this.obtenerPorId(id);
+    await this.prisma.clienteValorado.deleteMany({ where: { clienteId: id } });
+    return this.obtenerPorId(id);
   }
 
   private normalizarTelefono(telefono: string): string {

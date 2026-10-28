@@ -140,6 +140,7 @@ model Cliente {
   nombre    String
   telefono  String    @unique
   email     String?
+  activo    Boolean   @default(true)
   creadoEn  DateTime  @default(now())
   reservas  Reserva[]
   ventas    Venta[]
