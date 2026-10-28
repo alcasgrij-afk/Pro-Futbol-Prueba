@@ -345,27 +345,37 @@ añadidos), y **dedup-plica** la copia rota de `apps/api/node_modules`.
 
 ---
 
-### 4.3 Otras dependencias transitivas ✅ (recontadas 2026-09-13)
-`npm audit --omit=dev` re-ejecutado tras la migración NestJS 11 (lockfile
-estable, sin `--force`): **9 vulnerabilidades (1 crítica, 5 altas, 3
-moderadas) — el mismo número que al cierre de Fase 5**. Ninguna en código
-propio; todas transitivas. Compare con la pre-migración, el **footprint
-mejoró**: los CVEs altos de `next@14` (SSRF/DoS) **desaparecieron** (Next 15)
-y ya no aparecen `lodash`/`glob`/`webpack` (eran dev-deps). El residuo real:
+### 4.3 Otras dependencias transitivas ✅ (recontadas 2026-10-27)
+`npm audit --omit=dev` re-ejecutado: **7 vulnerabilidades (4 altas, 3
+moderadas) — bajó de 9 a 7** tras aplicar los fixes no-breaking disponibles.
+Cambios vs. el recuento anterior (2026-09-13):
+- **`next` crítica (RCE no-autenticado vía SVG en Image Optimization +
+  cache poisoning SSG/ISR) — resuelta.** Era nueva desde la última revisión
+  (no estaba en el recuento de sept.). Fix aplicado: `next` `15.5.25` →
+  `15.5.28` (mismo minor, pin exacto bumpeado, **no** rompe nada — verificado
+  con `next build` 24/24 rutas OK).
+- **`body-parser`/`qs` (altas/moderadas, vía `express@5` de
+  `@nestjs/platform-express@11`) — resueltas** con `npm audit fix` (no-force).
+- **`tar`** (vía `bcrypt`→`node-pre-gyp`) y **`uuid`** (vía `exceljs`) **ya no
+  aparecen** — resueltas solas en algún update previo (el override de `uuid`
+  en el `package.json` raíz, sección 4.2, ya cubría ese caso).
+- `fast-uri`/`postcss-selector-parser`/el combo `deepmerge`→`jest` son
+  **nuevas en el recuento pero dev-only** (no aparecen en `--omit=dev`): sin
+  exposición en runtime.
+
+El residuo real (prod, `--omit=dev`):
 
 | Paquete | Sev | De dónde llega | Evaluación real | Fix |
 |---|---|---|---|---|
-| `tar` | crítica | `bcrypt` → `@mapbox/node-pre-gyp` | node-pre-gyp extrae el binario de bcrypt **solo en `npm install`**; el código de tar jamás corre en runtime. Requeriría alimentarle un `.tar` malicioso durante la instalación — no es alcanzable en deploy | `npm audit fix` (semver-safe), diferido |
-| `multer` | alta | `@nestjs/platform-express` | **No hay endpoints multipart** (verificado: cero `FileInterceptor`/`UploadedFile` en `apps/api/src`) — multer solo se activa como middleware si una ruta lo declara | No existe fix upstream |
-| `postcss` | alta | incluido **dentro** de `next@15.5.25` | Solo corre en build procesando CSS propio del repo (nunca CSS de un usuario externo) | `next@16` (major, breaking) |
-| `uuid` | moderada | `exceljs` (exportación reportes) | `exceljs` usa `uuid` internamente sin exponer el parámetro `buf`; el CVE aplica a v3/v5/v6 con buf controlado | Solo `--force` (downgrade absurd existente) |
+| `multer` | alta | `@nestjs/platform-express` | CVE cambió (ahora: DoS por `fileFilter` async colgado tras cierre de conexión). **No hay endpoints multipart** (cero `FileInterceptor`/`UploadedFile` en `apps/api/src`) — sigue sin ser alcanzable | Requiere `@nestjs/platform-express@12.x` (ver 4.5, major coordinado de NestJS) |
+| `postcss` | alta | incluido **dentro** de `next@15.5.28` (copia anidada propia de next) | Solo corre en build procesando CSS propio del repo | `next@16` (major, breaking) |
+| `js-yaml` | moderada | `@nestjs/swagger` (pin exacto `5.3.0` en su propio `package.json`, sin rango) | Swagger solo usa `js-yaml` para **serializar** (`dump()`) el spec OpenAPI generado por el propio código — nunca **parsea** (`load()`) YAML externo/no confiable, que es donde vive el CVE (DoS por `maxTotalMergeKeys`). Se intentó un `overrides` scoped (`@nestjs/swagger.js-yaml`) pero npm 10.9.9 no lo aplicó de forma confiable sobre este pin exacto — revertido para no arriesgar el lockfile (ver 4.2) por un hallazgo sin exposición real | Esperar a que `@nestjs/swagger` bumpee su propio `js-yaml` interno (fuera de nuestro control vía override) |
 
-**Deferred:** el único fix no-breaking disponible (`npm audit fix` → tar) se
-difiere para no volver a re-resolver el árbol frágil (ver 4.2); es higiene de
-instalación, no exposición en runtime. Los fixes `--force` (`next@16`,
-`exceljs@3.4.0`) son majors breaking que no se justifican para cerrar estos
-vectores. Revisar en la próxima actualización mayor de `next`/NestJS.
-**Nota:** `Dependabot` (sección 3.4) repetirá este análisis semanalmente.
+**Deferred:** `multer`/`postcss` requieren majors breaking (NestJS 12 / Next
+16) que no se justifican solo para esto — revisar junto con esas migraciones
+(sección 4.5). `js-yaml` no tiene exposición real y el override no aplica
+limpio — diferido. **Nota:** `Dependabot` (sección 3.4, alerts confirmadas
+activas) repetirá este análisis semanalmente.
 
 ---
 
@@ -638,7 +648,7 @@ verificación en browser.
 | Next.js 15 | Migración + pruebas | ✅ resuelto (2026-09-07) |
 | NestJS 11 | Migración + pruebas | ✅ resuelto (2026-09-08) |
 | @nestjs/cli transitivas (sección 4.2) | `nest build`/`nest start` faltaba cierre de deps | ✅ resuelto (2026-09-13): @nestjs/cli como devDep en raíz |
-| Audit transitivas (sección 4.3) | Recuento post-Nest-11 | ✅ 9 residuales, mismo baseline (2026-09-13) |
+| Audit transitivas (sección 4.3) | Recuento post-Nest-11 | ✅ 9 residuales (2026-09-13) → 7 (2026-10-27): `next` crítica (RCE) fijada, `body-parser`/`qs` fijados; `multer`/`postcss`/`js-yaml` diferidos |
 | Monitoreo (sección 5) | Sentry, DSN-gated (errores 5xx) | ✅ resuelto (2026-09-13): @sentry/nestjs, solo 5xx, activar con SENTRY_DSN |
 | Bracket automático (sección 6) | Rondas 2+ de eliminación directa se armaban a mano | ✅ resuelto (2026-09-13): generarRondaSiguiente + penales en el panel admin |
 | Date picker de fecha en el chat | UI + DTO + lógica de disponibilidad/reserva | ✅ resuelto (2026-09-14): 126/126 tests, verificado en browser |

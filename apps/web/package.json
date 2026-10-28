@@ -13,7 +13,7 @@
     "@profutbol/shared-types": "*",
     "framer-motion": "^13.3.0",
     "geist": "^1.7.2",
-    "next": "15.5.25",
+    "next": "^15.5.28",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
