@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { GastoCategoria, GatewayPago, type GastoDTO, type ResumenGastosDTO } from '@profutbol/shared-types';
 import { api, ApiError, type PagoDetalle, type PagoLedgerItem } from '../../../lib/api-client';
 import { aISO, hoyISO } from '../../../lib/fechas';
@@ -246,7 +246,7 @@ function GastosTab() {
   const [form, setForm] = useState({ categoria: GastoCategoria.OTROS as GastoCategoria, montoQ: '', descripcion: '', fecha: hoyISO() });
   const [errorForm, setErrorForm] = useState<string | null>(null);
 
-  async function cargar() {
+  const cargar = useCallback(async () => {
     setCargando(true);
     setError(null);
     try {
@@ -261,11 +261,11 @@ function GastosTab() {
     } finally {
       setCargando(false);
     }
-  }
+  }, [desde, hasta]);
 
   useEffect(() => {
     cargar();
-  }, [desde, hasta]);
+  }, [cargar]);
 
   async function agregarGasto() {
     if (!form.montoQ || Number(form.montoQ) <= 0) {
