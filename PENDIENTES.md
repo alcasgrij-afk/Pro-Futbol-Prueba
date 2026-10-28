@@ -9,6 +9,49 @@ para que el equipo decida qué atacar y cuándo.
 > en `.claude/settings.json`) — no dejarlo acumular drift como pasó entre
 > 2026-09-24 y 2026-10-27 (11 commits de features/infra sin registrar aquí).
 
+## Resuelto (2026-10-28, incidente: Vercel fallaba en los últimos 3 deploys)
+
+- **Síntoma:** las últimas 3 producciones a Vercel (`9d15a14`, `1728cec`,
+  `6b5f071`) fallaron con `[TypeError: Cannot read properties of undefined
+  (reading 'phase')]` durante `next build`, justo después de
+  `"Detected Next.js version: 16.4.3"` — a pesar de que `apps/web/package.json`
+  siempre dijo `"next": "^15.5.28"` y de que `npm run build:web` **local**
+  pasaba limpio en cada una de esas 3 sesiones.
+- **Causa raíz:** `geist` (fuente de Vercel) tiene un peerDependency muy
+  laxo (`next: >=13.2.0`). Al bumpear `next` a `15.5.28` en la sesión
+  anterior, npm resolvió **dos copias simultáneas** de `next` en el árbol:
+  una anidada en `apps/web/node_modules/next` en `15.5.28` (satisface la
+  dependencia directa) y otra **hoisteada en la raíz** en `16.4.3` (la
+  última disponible, satisface el peerDependency laxo de `geist`). Node
+  resolvía `require('next')` a la copia anidada correcta — por eso local
+  funcionaba — pero el detector de versión de `vercel build` lee la copia
+  de la **raíz**, vio `16.4.3`, y aplicó lógica interna de Next 16 contra un
+  build que en realidad corría con 15.x, reventando con ese `TypeError`.
+  El `package-lock.json` quedó con esta inconsistencia desde el commit
+  `9d15a14` sin que nadie lo notara, porque nada en el flujo local la
+  expone.
+- **Fix:** agregado `"next": "^15.5.28"` al `overrides` de la raíz
+  (`package.json`, mismo patrón ya usado para `@nestjs/*`/`uuid`/
+  `shell-quote`) para forzar una sola resolución en todo el árbol. El
+  `overrides` por sí solo no bastó para sanar el lockfile existente (mismo
+  problema ya documentado en la sección 4.3: este lockfile, bajo npm
+  10.9.9, no persiste la clave `overrides` en `packages[""]`, así que un
+  `npm install` sobre el lockfile viejo reusaba la resolución corrupta) —
+  se regeneró `package-lock.json` desde cero (`rm package-lock.json
+  node_modules -r && npm install`). Verificado: `npm ls next --all` → una
+  sola resolución, `15.5.28 overridden`; cero apariciones de `16.4.3` en el
+  lockfile.
+- **Verificado antes de commitear:** build de `shared-types`/`api`/`web`
+  limpio (banner confirmado: `▲ Next.js 15.5.28`), **162/162 tests**, lint
+  limpio, y arranque real en modo producción (`npm run start` en ambas
+  apps contra Postgres/Redis vivos): API respondiendo 200 en `/canchas`,
+  web respondiendo 200 en `/reservar`, `/login`, `/torneos` y el redirect
+  307 esperado en `/`.
+- **Efecto colateral esperado, no un riesgo nuevo:** regenerar el lockfile
+  desde cero también actualizó ~200 paquetes transitivos a su último patch
+  dentro del rango ya declarado (mismo tipo de refresco que la sección 4.5,
+  nada de majors) — es ruido de diff, no cambio de comportamiento.
+
 ## Resuelto (2026-10-28, módulo admin de Clientes + VIP)
 
 - **`/admin/clientes` — gap cerrado: antes del backend solo existía
@@ -791,5 +834,6 @@ verificación en browser.
 | Dependabot alerts (sección 3.4) | Detección de vulnerabilidades en transitivas vía GitHub Security | ✅ confirmado activo (2026-10-27) |
 | Cobro rápido en `/pagos` (mensualidad/árbitro/conceptos), abono de reservas, caso clima en Caja, cierre de caja | Modal de 3 pasos + recibo auto-numerado; nuevos modelos `Arbitro`/`ConceptoPago`; saldo en vivo sin columna duplicada; reporte día/semana/mes exportable y compartible | ✅ resuelto (2026-10-27, commit `1728cec`): verificado contra DB real, 153/153 tests, ver sección nueva "Resuelto (2026-10-27, cobro rápido en /pagos)" |
 | Módulo admin de Clientes (`/admin/clientes`) + promo "6ta gratis" | Lista/editar/desactivar clientes; otorgar/quitar VIP manualmente (antes `ClienteValorado` nunca se creaba desde ningún lado) | ✅ resuelto (2026-10-28): verificado contra DB real, 162/162 tests, ver sección nueva "Resuelto (2026-10-28, módulo admin de Clientes + VIP)" |
+| Incidente: Vercel fallaba en los últimos 3 deploys (`next` hoisteado a 16.4.3 vía peerDep laxo de `geist`) | `vercel build` reventaba con `TypeError: ... reading 'phase'` pese a que local siempre pasó | ✅ resuelto (2026-10-28): override + lockfile regenerado, 162/162 tests, build real verificado con `next start`, ver sección nueva "Resuelto (2026-10-28, incidente: Vercel fallaba en los últimos 3 deploys)" |
 
 * \* Dependabot **version updates** activado vía `.github/dependabot.yml` (PRs semanales). Las **alertas de seguridad** se activan manualmente en GitHub → Settings → Code security → Dependabot → Enable (no se puede desde CLI).
