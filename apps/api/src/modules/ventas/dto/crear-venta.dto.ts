@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { GatewayPago } from '@profutbol/shared-types';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString, Matches, Min, ValidateIf, ValidateNested } from 'class-validator';
 
 export class VentaItemInputDto {
   @ApiProperty({ example: 'uuid-del-producto' })
@@ -35,4 +36,14 @@ export class CrearVentaDto {
   @IsOptional()
   @IsString()
   notas?: string;
+
+  @ApiPropertyOptional({ example: GatewayPago.EFECTIVO, enum: [GatewayPago.EFECTIVO, GatewayPago.TARJETA] })
+  @IsOptional()
+  @IsIn([GatewayPago.EFECTIVO, GatewayPago.TARJETA], { message: 'metodoPago debe ser EFECTIVO o TARJETA.' })
+  metodoPago?: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
+
+  @ApiPropertyOptional({ example: '123456' })
+  @ValidateIf((o) => o.metodoPago === GatewayPago.TARJETA)
+  @Matches(/^\d{6,12}$/, { message: 'Código POS debe tener entre 6 y 12 dígitos.' })
+  codigoAutorizacion?: string;
 }

@@ -410,6 +410,8 @@ export interface VentaDTO {
   items: VentaItemDTO[];
   creadoEn: string;
   numeroRecibo?: string | null;
+  gateway?: GatewayPago;
+  codigoAutorizacion?: string | null;
 }
 
 export interface CrearVentaInput {
@@ -417,6 +419,8 @@ export interface CrearVentaInput {
   clienteNombre?: string;
   items: { productoId: string; cantidad: number }[];
   notas?: string;
+  metodoPago?: GatewayPago.EFECTIVO | GatewayPago.TARJETA;
+  codigoAutorizacion?: string;
 }
 
 export interface GastoDTO {

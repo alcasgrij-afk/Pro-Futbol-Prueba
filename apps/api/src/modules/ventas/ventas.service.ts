@@ -52,9 +52,11 @@ export class VentasService {
       tipoReferencia: TipoPagoReferencia.VENTA,
       referenciaId: venta.id,
       montoQ: montoTotalQ,
+      gateway: dto.metodoPago,
+      codigoAutorizacion: dto.codigoAutorizacion,
     });
 
-    return { ...venta, numeroRecibo: pago.numeroRecibo };
+    return { ...venta, numeroRecibo: pago.numeroRecibo, gateway: pago.gateway, codigoAutorizacion: pago.codigoAutorizacion };
   }
 
   async listar(filtros: { desde?: string; hasta?: string }) {
