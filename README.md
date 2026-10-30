@@ -190,21 +190,24 @@ directamente desde el panel admin (botón **"Confirmar"** o
 
 ## 8. Despliegue
 
-- **CI**: `.github/workflows/ci.yml` corre lint + tests + build en cada Pull
-  Request contra `main`, y construye la imagen Docker de la API cuando el
-  merge llega a `main` (ver Plan Tecnico, seccion 7).
-- **Imagen Docker de la API**: `apps/api/Dockerfile` (build multi-stage).
-  Probar localmente:
+- **Produccion actual**: API en **Render**, panel/web en **Vercel**, ambos con
+  auto-deploy desde `main`. Variables de entorno reales se configuran en el
+  dashboard de cada plataforma (ver `.env.example` en la raiz como referencia
+  de que variables existen; nunca commitear un `.env` real).
+- **CI**: `.github/workflows/ci.yml` corre lint + tests + build (api y web) en
+  cada push/PR contra `main`, contra Postgres/Redis reales. No construye ni
+  publica imagen Docker — eso quedo descontinuado, Render construye
+  directamente desde el repo.
+- **Render free tier duerme la API tras ~15 min sin trafico**:
+  `.github/workflows/keep-alive.yml` hace ping a `/health` cada 10 min para
+  evitarlo.
+- **Imagen Docker de la API** (opcional, para correr la API en otro lado):
+  `apps/api/Dockerfile` (build multi-stage). Probar localmente:
   ```bash
   docker build -f apps/api/Dockerfile -t profutbol-api .
   ```
-- **Stack de produccion de referencia**: `docker-compose.prod.yml` (API +
-  Postgres + Redis). Requiere un archivo `apps/api/.env` con las variables de
-  produccion reales (nunca commitear este archivo).
-- Para el panel admin (`apps/web`), lo mas simple es desplegarlo en Vercel o
-  en DigitalOcean App Platform como sitio Next.js está preparado para eso
-  (`next build && next start`), apuntando `NEXT_PUBLIC_API_URL` a la URL
-  publica de la API.
+  `docker-compose.prod.yml` (API + Postgres + Redis) es un stack de
+  referencia para correr ese build localmente, no lo que usa Render.
 - **Importante:** `npm run build` exige que el dev server este DETENIDO.
   `next build` y `next dev` comparten el directorio `.next`; correr el build
   con el dev vivo lo envenena (error tipico `Cannot find module './383.js'`).
