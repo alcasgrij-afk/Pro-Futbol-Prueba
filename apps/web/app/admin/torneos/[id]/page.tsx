@@ -16,6 +16,8 @@ export default function AdminTorneoDetallePage({ params }: { params: Promise<{ i
   const [penales, setPenales] = useState<Record<string, string>>({});
   const [pendientePenales, setPendientePenales] = useState<string | null>(null);
   const [campeon, setCampeon] = useState<string | null>(null);
+  const [nuevoEquipo, setNuevoEquipo] = useState({ nombre: '', capitanNombre: '', capitanTelefono: '' });
+  const [msgEquipo, setMsgEquipo] = useState('');
 
   /** Campeon derivado de los partidos: el unico partido jugado de la ronda mas alta. */
   function campeonDe(lista: PartidoDTO[], formato?: string): string | null {
@@ -60,6 +62,24 @@ export default function AdminTorneoDetallePage({ params }: { params: Promise<{ i
       })
       .catch((e) => setError(e.message));
   }, [id]);
+
+  async function agregarEquipo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!nuevoEquipo.nombre.trim()) return;
+    try {
+      await api.inscribirEquipo(id, {
+        nombre: nuevoEquipo.nombre.trim(),
+        capitanNombre: nuevoEquipo.capitanNombre || undefined,
+        capitanTelefono: nuevoEquipo.capitanTelefono || undefined,
+      });
+      const lista = await api.listarEquiposDeTorneo(id);
+      setEquipos(lista);
+      setNuevoEquipo({ nombre: '', capitanNombre: '', capitanTelefono: '' });
+      setMsgEquipo('Equipo agregado.');
+    } catch (e) {
+      setMsgEquipo(e instanceof ApiError ? e.message : (e as Error).message);
+    }
+  }
 
   async function generarFixture() {
     try {
@@ -204,6 +224,38 @@ export default function AdminTorneoDetallePage({ params }: { params: Promise<{ i
             </tbody>
           </table></div>
         )}
+
+        <form onSubmit={agregarEquipo} className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-end gap-3">
+          <label className="space-y-1">
+            <span className="block text-xs text-gray-500">Nombre del equipo *</span>
+            <input
+              value={nuevoEquipo.nombre}
+              onChange={(e) => setNuevoEquipo({ ...nuevoEquipo, nombre: e.target.value })}
+              required
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="block text-xs text-gray-500">Capitán (opcional)</span>
+            <input
+              value={nuevoEquipo.capitanNombre}
+              onChange={(e) => setNuevoEquipo({ ...nuevoEquipo, capitanNombre: e.target.value })}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="block text-xs text-gray-500">Teléfono (opcional)</span>
+            <input
+              value={nuevoEquipo.capitanTelefono}
+              onChange={(e) => setNuevoEquipo({ ...nuevoEquipo, capitanTelefono: e.target.value })}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            />
+          </label>
+          <button type="submit" className="px-3 py-1.5 bg-navy text-white rounded-md text-sm font-semibold transition-transform active:scale-[0.98]">
+            Agregar equipo
+          </button>
+          {msgEquipo && <p className="text-sm text-gray-600 w-full">{msgEquipo}</p>}
+        </form>
       </section>
 
       <section className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">

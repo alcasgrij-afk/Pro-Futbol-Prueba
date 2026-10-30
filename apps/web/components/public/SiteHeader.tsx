@@ -11,6 +11,7 @@ const ANCHOR_ITEMS = [
 ];
 
 const ACADEMIA_ITEM = { href: '/academia', label: 'Academia' };
+const TORNEOS_ITEM = { href: '/torneos', label: 'Torneos' };
 
 const ANCHOR_ITEMS_REST = [
   { id: 'precios', label: 'Precios' },
@@ -56,6 +57,7 @@ export default function SiteHeader() {
             <li key={item.id}><a href={anchorHref(item.id)} className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">{item.label}</a></li>
           ))}
           <li><Link href={ACADEMIA_ITEM.href} className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">{ACADEMIA_ITEM.label}</Link></li>
+          <li><Link href={TORNEOS_ITEM.href} className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">{TORNEOS_ITEM.label}</Link></li>
           {ANCHOR_ITEMS_REST.map((item) => (
             <li key={item.id}><a href={anchorHref(item.id)} className="text-[#0a3d7d] hover:text-[#8f6c1c] transition-colors border-b-2 border-transparent hover:border-[#bf9b1f] pb-1">{item.label}</a></li>
           ))}
@@ -92,6 +94,7 @@ export default function SiteHeader() {
             <a key={item.id} href={anchorHref(item.id)} onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">{item.label}</a>
           ))}
           <Link href={ACADEMIA_ITEM.href} onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">{ACADEMIA_ITEM.label}</Link>
+          <Link href={TORNEOS_ITEM.href} onClick={() => setMobileMenuOpen(false)} className="block py-3 text-[#0a3d7d] font-medium border-b border-gray-50">{TORNEOS_ITEM.label}</Link>
           {ANCHOR_ITEMS_REST.map((item, i) => (
             <a
               key={item.id}

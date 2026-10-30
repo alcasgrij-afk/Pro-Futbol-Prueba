@@ -2,17 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FormatoTorneo, EstadoTorneo, TorneoDTO } from '@profutbol/shared-types';
+import { FormatoTorneo, TorneoDTO } from '@profutbol/shared-types';
 import { ApiError, api } from '../../../lib/api-client';
 import { hoyISO, hoyISOAnios } from '../../../lib/fechas';
-
-const ETIQUETA_ESTADO: Record<EstadoTorneo, string> = {
-  [EstadoTorneo.PROXIMO]: 'Próximo',
-  [EstadoTorneo.INSCRIPCIONES_ABIERTAS]: 'Inscripciones abiertas',
-  [EstadoTorneo.EN_CURSO]: 'En curso',
-  [EstadoTorneo.FINALIZADO]: 'Finalizado',
-  [EstadoTorneo.CANCELADO]: 'Cancelado',
-};
+import EstadoTorneoBadge from '../../../components/EstadoTorneoBadge';
 
 export default function AdminTorneosPage() {
   const [torneos, setTorneos] = useState<TorneoDTO[]>([]);
@@ -79,15 +72,7 @@ export default function AdminTorneosPage() {
                 <p className="text-xs text-gray-500">{t.formato === FormatoTorneo.LIGA ? 'Todos contra todos' : 'Eliminación directa'} · {t.equiposInscritos}/{t.maxEquipos} equipos · Cuota Q{t.cuotaInscripcionQ}</p>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  t.estado === EstadoTorneo.INSCRIPCIONES_ABIERTAS ? 'bg-yellow-100 text-yellow-800' :
-                  t.estado === EstadoTorneo.EN_CURSO ? 'bg-blue-100 text-blue-800' :
-                  t.estado === EstadoTorneo.FINALIZADO ? 'bg-green-100 text-green-800' :
-                  t.estado === EstadoTorneo.CANCELADO ? 'bg-red-100 text-red-700' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  {ETIQUETA_ESTADO[t.estado]}
-                </span>
+                <EstadoTorneoBadge estado={t.estado} />
               </div>
             </li>
           ))}

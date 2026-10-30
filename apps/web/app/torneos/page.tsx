@@ -2,17 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { EstadoTorneo, FormatoTorneo, TorneoDTO } from '@profutbol/shared-types';
+import { FormatoTorneo, TorneoDTO } from '@profutbol/shared-types';
 import { api } from '../../lib/api-client';
 import Skeleton from '../../components/Skeleton';
-
-const ETIQUETA_ESTADO: Record<EstadoTorneo, string> = {
-  [EstadoTorneo.PROXIMO]: 'Próximo',
-  [EstadoTorneo.INSCRIPCIONES_ABIERTAS]: 'Inscripciones abiertas',
-  [EstadoTorneo.EN_CURSO]: 'En curso',
-  [EstadoTorneo.FINALIZADO]: 'Finalizado',
-  [EstadoTorneo.CANCELADO]: 'Cancelado',
-};
+import SiteHeader from '../../components/public/SiteHeader';
+import EstadoTorneoBadge from '../../components/EstadoTorneoBadge';
 
 const ETIQUETA_FORMATO: Record<FormatoTorneo, string> = {
   [FormatoTorneo.LIGA]: 'Todos contra todos',
@@ -35,10 +29,7 @@ export default function TorneosPage() {
   return (
     <div className="min-h-screen bg-navy text-white">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:text-navy focus:px-3 focus:py-2 rounded">Saltar al contenido</a>
-      <header className="bg-navy border-b border-white/10 px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="font-bold text-lg">Pro Futbol Antigua</Link>
-        <Link href="/reservar" className="text-sm underline underline-offset-2">Reservar cancha</Link>
-      </header>
+      <SiteHeader />
       <main id="main" className="p-6 max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold mb-6">Torneos y campeonatos</h1>
         {error && <p className="text-red-400 mb-4">{error}</p>}
@@ -62,7 +53,7 @@ export default function TorneosPage() {
             <Link key={t.id} href={`/torneos/${t.id}`} className="block bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/10">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">{t.nombre}</h2>
-                <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-navy">{ETIQUETA_ESTADO[t.estado]}</span>
+                <EstadoTorneoBadge estado={t.estado} />
               </div>
               {t.descripcion && <p className="text-sm text-white/70 mt-1">{t.descripcion}</p>}
               <p className="text-xs text-white/60 mt-2">

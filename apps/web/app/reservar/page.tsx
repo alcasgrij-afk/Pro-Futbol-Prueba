@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import type { MensajeSaliente } from '@profutbol/shared-types';
 import WeekDatePicker, { type SlotElegido } from '../../components/WeekDatePicker';
+import SiteHeader from '../../components/public/SiteHeader';
 
 // Cuanto dura el resaltado (una sola vez) del boton "Reservar Ahora"
 // despues de elegir un horario en el picker.
@@ -225,13 +225,6 @@ export default function ReservarPage() {
     } catch {
       setMensajes((prev) => [...prev, { tipo: 'texto', texto: 'No se pudo iniciar el pago. Intentá de nuevo.', origen: 'bot', hora: horaAhora() }]);
     }
-  }, []);
-
-  // Solo scrollea al chat: no enfoca el textarea aca (eso disparaba el
-  // scroll-into-view nativo del navegador al foco, que terminaba tapando el
-  // boton "Reservar Ahora" con el input de mensaje mas abajo).
-  const focusChat = useCallback(() => {
-    document.getElementById('chatArea')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   const elegirSlot = useCallback((slot: SlotElegido) => {
@@ -462,28 +455,7 @@ export default function ReservarPage() {
         Saltar al chat de reservas
       </a>
 
-      {/* Top bar */}
-      <header className="sticky top-0 z-50 bg-white/97 backdrop-blur-md border-b border-[rgba(10,80,145,.09)]">
-        <div className="max-w-[1180px] mx-auto px-4 min-h-[68px] flex items-center justify-between gap-5">
-          <Link href="/" aria-label="Pro Futbol Antigua" className="flex items-center shrink-0">
-            <Image src="/profutbollogo.png" alt="Pro Futbol Antigua" width={453} height={162} className="h-[50px] w-auto max-sm:h-[44px]" />
-          </Link>
-          <nav className="hidden md:flex items-center gap-7" aria-label="Navegación principal">
-            <Link href="/#inicio" className="text-[13px] font-extrabold text-[#173f70] hover:text-[#0d76e8] transition-colors">Inicio</Link>
-            <Link href="/reservar" className="text-[13px] font-extrabold text-[#0d76e8]">Reservar</Link>
-            <Link href="/#canchas" className="text-[13px] font-extrabold text-[#173f70] hover:text-[#0d76e8] transition-colors">Canchas</Link>
-            <Link href="/#precios" className="text-[13px] font-extrabold text-[#173f70] hover:text-[#0d76e8] transition-colors">Precios</Link>
-            <Link href="/#informacion" className="text-[13px] font-extrabold text-[#173f70] hover:text-[#0d76e8] transition-colors">Información</Link>
-            <Link href="/#contacto" className="text-[13px] font-extrabold text-[#173f70] hover:text-[#0d76e8] transition-colors">Contacto</Link>
-          </nav>
-          <button
-            onClick={focusChat}
-            className="hidden sm:block bg-[#d8b32d] text-[#07345d] px-5 py-3 rounded-full font-black text-sm shadow-[0_7px_18px_rgba(165,194,0,.16)] hover:bg-[#d0a92a] transition-colors"
-          >
-            Reservar ahora
-          </button>
-        </div>
-      </header>
+      <SiteHeader />
 
       {/* Booking hero */}
       <section className="relative text-white px-4 py-10 border-b border-white/10 overflow-hidden">

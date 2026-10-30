@@ -342,35 +342,46 @@ function AcademiaContenido() {
       ) : alumnos.length === 0 ? (
         <p className="text-gray-500">No hay alumnos registrados todavía.</p>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500 text-left">
-                <th className="px-4 py-2">Nombre</th>
-                <th className="px-4 py-2">Categoría</th>
-                <th className="px-4 py-2">Encargado</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {alumnos.map((a) => (
-                <tr key={a.id} className="border-t border-gray-100">
-                  <td className="px-4 py-2 font-medium">{a.nombres} {a.apellidos}</td>
-                  <td className="px-4 py-2">
-                    <span className={`text-xs rounded-full px-2 py-0.5 ${colorCategoria(a.categoria)}`}>{a.categoria}</span>
-                  </td>
-                  <td className="px-4 py-2">
-                    {a.encargadoNombre}
-                    <div className="text-xs text-gray-500">{a.encargadoTelefono}</div>
-                  </td>
-                  <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
-                    <button onClick={() => iniciarEdicion(a)} className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100 transition active:scale-[0.98]">Editar</button>
-                    <button onClick={() => setDesactivando(a)} className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 hover:bg-red-100 transition active:scale-[0.98]">Desactivar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-6">
+          {Object.entries(
+            alumnos.reduce((acc, a) => {
+              (acc[a.categoria] ??= []).push(a);
+              return acc;
+            }, {} as Record<string, AlumnoDTO[]>),
+          )
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(([categoria, lista]) => (
+              <div key={categoria} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-x-auto">
+                <div className={`px-4 py-2 border-b border-gray-100 flex items-center gap-2 ${colorCategoria(categoria)}`}>
+                  <span className="font-semibold text-sm">{categoria}</span>
+                  <span className="text-xs opacity-75">({lista.length})</span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-gray-500 text-left">
+                      <th className="px-4 py-2">Nombre</th>
+                      <th className="px-4 py-2">Encargado</th>
+                      <th className="px-4 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lista.map((a) => (
+                      <tr key={a.id} className="border-t border-gray-100">
+                        <td className="px-4 py-2 font-medium">{a.nombres} {a.apellidos}</td>
+                        <td className="px-4 py-2">
+                          {a.encargadoNombre}
+                          <div className="text-xs text-gray-500">{a.encargadoTelefono}</div>
+                        </td>
+                        <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
+                          <button onClick={() => iniciarEdicion(a)} className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100 transition active:scale-[0.98]">Editar</button>
+                          <button onClick={() => setDesactivando(a)} className="text-xs font-semibold text-white bg-red-600 rounded px-2 py-1 hover:bg-red-700 transition active:scale-[0.98]">Desactivar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
         </div>
       )}
 
