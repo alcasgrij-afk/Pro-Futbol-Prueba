@@ -1,5 +1,5 @@
 ---
-description: Reconcile PENDIENTES.md against commits since the last reconciliation, then commit and push
+description: Reconcile PENDIENTES.md against commits since the last reconciliation, then commit (no push)
 ---
 
 Reconcile this repo's `PENDIENTES.md` against what's actually shipped. Read-only investigation
@@ -35,12 +35,14 @@ the `SessionStart` hook that normally does this automatically — use it when th
      matching this repo's commit convention) — see commit `2f0d878` for an example.
    - Do **not** add a `Co-Authored-By` trailer — this user's standing instruction is no commit
      attribution, full stop.
-   - After committing, `git push` — this repo's standing policy is to push automatically once a
-     commit exists locally, no need to ask.
+   - Do **not** `git push` after committing. The repo's usual standing policy is to push
+     automatically once a commit exists — this command is the one exception: the user pushes
+     this one on demand themselves.
 
 6. Scope boundary: only ever edit `PENDIENTES.md` in this command. If `CLAUDE.md`, `README.md`,
    or anything else looks stale while you're doing this, name it in your final reply instead of
    editing it — that's a separate, explicit decision for the user to make, not something this
    command does on its own.
 
-Finish with a short summary: what rows were added/updated, and the commit hash.
+Finish with a short summary: what rows were added/updated, the commit hash, and a reminder that
+it still needs to be pushed.
