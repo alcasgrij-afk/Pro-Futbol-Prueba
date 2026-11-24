@@ -21,8 +21,8 @@ export default function ClientesPage() {
 
   const [desactivando, setDesactivando] = useState<ClienteListadoDTO | null>(null);
   const [quitandoVip, setQuitandoVip] = useState<ClienteListadoDTO | null>(null);
+  const [otorgandoVip, setOtorgandoVip] = useState<ClienteListadoDTO | null>(null);
   const [accionCargando, setAccionCargando] = useState(false);
-  const [vipCargando, setVipCargando] = useState<string | null>(null);
 
   const cargar = useCallback(() => {
     setCargando(true);
@@ -87,20 +87,18 @@ export default function ClientesPage() {
     }
   }
 
-  async function toggleVip(c: ClienteListadoDTO) {
-    setVipCargando(c.id);
-    setError(null);
+  async function confirmarOtorgarVip() {
+    if (!otorgandoVip) return;
+    setAccionCargando(true);
     try {
-      if (c.esValorado) {
-        await api.quitarValorado(c.id);
-      } else {
-        await api.otorgarValorado(c.id);
-      }
+      await api.otorgarValorado(otorgandoVip.id);
+      setOtorgandoVip(null);
       cargar();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo actualizar el estatus VIP.');
+      setError(err instanceof ApiError ? err.message : 'No se pudo otorgar el estatus VIP.');
+      setOtorgandoVip(null);
     } finally {
-      setVipCargando(null);
+      setAccionCargando(false);
     }
   }
 
@@ -123,16 +121,21 @@ export default function ClientesPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Clientes</h1>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
           <input
             type="text"
             placeholder="Buscar por nombre o teléfono..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="min-h-11 w-64 rounded-md border border-gray-400 px-3 text-sm"
+            className="min-h-11 w-full sm:w-64 rounded-md border border-gray-400 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
           />
           <label className="flex items-center gap-2 text-gray-600 whitespace-nowrap">
-            <input type="checkbox" checked={mostrarInactivos} onChange={(e) => setMostrarInactivos(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={mostrarInactivos}
+              onChange={(e) => setMostrarInactivos(e.target.checked)}
+              className="focus:outline-none focus:ring-2 focus:ring-navy"
+            />
             Mostrar inactivos
           </label>
         </div>
@@ -153,7 +156,7 @@ export default function ClientesPage() {
             <input
               value={form.nombre}
               onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
             />
           </label>
           <label className="block text-xs font-medium text-gray-600">
@@ -161,7 +164,7 @@ export default function ClientesPage() {
             <input
               value={form.telefono}
               onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
             />
           </label>
           <label className="block text-xs font-medium text-gray-600">
@@ -170,7 +173,7 @@ export default function ClientesPage() {
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
             />
           </label>
           <label className="block text-xs font-medium text-gray-600">
@@ -178,7 +181,7 @@ export default function ClientesPage() {
             <input
               value={form.dpi}
               onChange={(e) => setForm({ ...form, dpi: e.target.value })}
-              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm"
+              className="mt-1 w-full min-h-11 rounded-md border border-gray-400 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
             />
           </label>
           <div className="flex items-center gap-3 pt-1">
@@ -233,8 +236,13 @@ export default function ClientesPage() {
             </thead>
             <tbody>
               {clientes.map((c) => (
-                <tr key={c.id} className="border-t border-gray-100">
-                  <td className="px-4 py-2 font-medium">{c.nombre}</td>
+                <tr key={c.id} className={`border-t border-gray-100 ${editando?.id === c.id ? 'bg-navy/5' : ''}`}>
+                  <td className="px-4 py-2 font-medium">
+                    {c.nombre}
+                    <div className="text-[11px] font-normal text-gray-400">
+                      {c.dpi ? `DPI ${c.dpi}` : `Cliente desde ${new Date(c.creadoEn).toLocaleDateString('es-GT')}`}
+                    </div>
+                  </td>
                   <td className="px-4 py-2">{c.telefono}</td>
                   <td className="px-4 py-2 text-gray-500">{c.email ?? '—'}</td>
                   <td className="px-4 py-2">{c.totalReservas}</td>
@@ -262,20 +270,19 @@ export default function ClientesPage() {
                   <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
                     <button
                       onClick={() => iniciarEdicion(c)}
-                      className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100"
+                      className="text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded px-2 py-1 hover:bg-gray-50"
                     >
                       Editar
                     </button>
                     <button
-                      onClick={() => (c.esValorado ? setQuitandoVip(c) : toggleVip(c))}
-                      disabled={vipCargando === c.id}
-                      className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 hover:bg-amber-100 disabled:opacity-50"
+                      onClick={() => (c.esValorado ? setQuitandoVip(c) : setOtorgandoVip(c))}
+                      className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 hover:bg-amber-100"
                     >
-                      {vipCargando === c.id ? '...' : c.esValorado ? 'Quitar VIP' : 'Otorgar VIP'}
+                      {c.esValorado ? 'Quitar VIP' : 'Otorgar VIP'}
                     </button>
                     <button
                       onClick={() => setDesactivando(c)}
-                      className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 hover:bg-red-100"
+                      className="text-xs font-semibold text-white bg-red-600 rounded px-2 py-1 hover:bg-red-700 active:scale-[0.98]"
                     >
                       {c.activo ? 'Desactivar' : 'Activar'}
                     </button>
@@ -308,6 +315,17 @@ export default function ClientesPage() {
           mensaje={`¿Quitarle el estatus VIP a ${quitandoVip.nombre}? Deja de acumular hacia la 6ta reserva gratis.`}
           onConfirmar={confirmarQuitarVip}
           onCancelar={() => setQuitandoVip(null)}
+          cargando={accionCargando}
+          variante="primario"
+        />
+      )}
+
+      {otorgandoVip && (
+        <ConfirmarModal
+          titulo="Otorgar estatus VIP"
+          mensaje={`¿Otorgarle el estatus VIP a ${otorgandoVip.nombre}? Empieza a acumular hacia la 6ta reserva gratis en Caja.`}
+          onConfirmar={confirmarOtorgarVip}
+          onCancelar={() => setOtorgandoVip(null)}
           cargando={accionCargando}
           variante="primario"
         />
