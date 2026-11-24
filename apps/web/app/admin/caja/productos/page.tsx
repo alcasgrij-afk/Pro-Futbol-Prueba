@@ -12,6 +12,7 @@ const ETIQUETA_CATEGORIA: Record<ProductoCategoria, string> = {
 };
 
 const BILLETES_Q = [50, 100, 200];
+const CODIGO_POS_REGEX = /^\d{6,12}$/;
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<ProductoDTO[] | null>(null);
@@ -26,13 +27,16 @@ export default function ProductosPage() {
   const [metodoPago, setMetodoPago] = useState<GatewayPago.EFECTIVO | GatewayPago.TARJETA>(GatewayPago.EFECTIVO);
   const [codigoAutorizacion, setCodigoAutorizacion] = useState('');
   const [recibido, setRecibido] = useState('');
+  const [recibidoEsExacto, setRecibidoEsExacto] = useState(false);
 
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCobro, setErrorCobro] = useState<string | null>(null);
   const [recibo, setRecibo] = useState<VentaDTO | null>(null);
 
   const [nuevo, setNuevo] = useState({ nombre: '', categoria: ProductoCategoria.TIENDA as ProductoCategoria, precioQ: '' });
   const [errorNuevo, setErrorNuevo] = useState<string | null>(null);
+  const [catalogoAbierto, setCatalogoAbierto] = useState(false);
 
   async function cargarProductos() {
     try {
@@ -71,6 +75,13 @@ export default function ProductosPage() {
   const totalQ = useMemo(() => lineasCarrito.reduce((acc, l) => acc + l.cantidad * l.producto.precioQ, 0), [lineasCarrito]);
   const cantidadArticulos = lineasCarrito.reduce((acc, l) => acc + l.cantidad, 0);
 
+  // Si el monto recibido fue fijado con "Exacto", lo mantenemos sincronizado
+  // con el total mientras el carrito cambia (antes quedaba desfasado y
+  // bloqueaba el cobro con un "Falta Qx" enganoso tras agregar otro articulo).
+  useEffect(() => {
+    if (recibidoEsExacto) setRecibido(String(totalQ));
+  }, [totalQ, recibidoEsExacto]);
+
   const recibidoNumero = recibido.trim() === '' ? null : Number(recibido);
   const cambioQ = metodoPago === GatewayPago.EFECTIVO && recibidoNumero !== null ? recibidoNumero - totalQ : null;
 
@@ -81,7 +92,9 @@ export default function ProductosPage() {
   function vaciarCarrito() {
     setCantidades({});
     setRecibido('');
+    setRecibidoEsExacto(false);
     setCodigoAutorizacion('');
+    setErrorCobro(null);
   }
 
   function estadoBoton(): { habilitado: boolean; texto: string } {
@@ -89,16 +102,19 @@ export default function ProductosPage() {
     if (metodoPago === GatewayPago.EFECTIVO && cambioQ !== null && cambioQ < 0) {
       return { habilitado: false, texto: `Falta Q${(-cambioQ).toFixed(2)}` };
     }
+    if (metodoPago === GatewayPago.TARJETA && !CODIGO_POS_REGEX.test(codigoAutorizacion)) {
+      return { habilitado: false, texto: 'Código POS inválido' };
+    }
     return { habilitado: true, texto: `Cobrar Q${totalQ.toLocaleString('es-GT', { minimumFractionDigits: 2 })}` };
   }
 
   async function cobrar() {
-    if (metodoPago === GatewayPago.TARJETA && !/^\d{6,12}$/.test(codigoAutorizacion)) {
-      setError('Código POS inválido (6 a 12 dígitos).');
+    if (metodoPago === GatewayPago.TARJETA && !CODIGO_POS_REGEX.test(codigoAutorizacion)) {
+      setErrorCobro('Código POS inválido (6 a 12 dígitos).');
       return;
     }
     setCargando(true);
-    setError(null);
+    setErrorCobro(null);
     try {
       const venta = await api.crearVenta({
         items: lineasCarrito.map((l) => ({ productoId: l.producto.id, cantidad: l.cantidad })),
@@ -113,7 +129,7 @@ export default function ProductosPage() {
       setClienteTelefono('');
       setClienteAbierto(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo cobrar la venta.');
+      setErrorCobro(err instanceof ApiError ? err.message : 'No se pudo cobrar la venta.');
     } finally {
       setCargando(false);
     }
@@ -164,19 +180,29 @@ export default function ProductosPage() {
               <div className="relative">
                 <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
-                  type="search"
+                  type="text"
                   placeholder="Buscar producto..."
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  className="w-full min-h-11 rounded-md border border-gray-400 pl-9 pr-3 text-sm"
+                  className="w-full min-h-11 rounded-md border border-gray-400 pl-9 pr-8 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-navy"
                 />
+                {busqueda && (
+                  <button
+                    type="button"
+                    onClick={() => setBusqueda('')}
+                    aria-label="Limpiar búsqueda"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 min-h-8 min-w-8 text-gray-400 hover:text-gray-600 text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {(['TODOS', ProductoCategoria.TIENDA, ProductoCategoria.ACADEMIA] as const).map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setCategoriaFiltro(cat)}
-                    className={`min-h-9 px-4 rounded-full text-sm font-semibold border ${
+                    className={`min-h-11 px-4 rounded-full text-sm font-semibold border ${
                       categoriaFiltro === cat ? 'bg-navy border-navy text-white' : 'border-gray-300 text-navy hover:border-navy'
                     }`}
                   >
@@ -188,7 +214,33 @@ export default function ProductosPage() {
 
             {/* Grid tactil: tocar un producto lo agrega a la venta */}
             {productosFiltrados.length === 0 ? (
-              <p className="text-sm text-gray-500">No hay productos que coincidan con la búsqueda.</p>
+              <div className="text-sm text-gray-500 space-y-1">
+                <p>
+                  No hay productos
+                  {busqueda.trim() && (
+                    <>
+                      {' '}que coincidan con &quot;<span className="font-medium">{busqueda.trim()}</span>&quot;
+                    </>
+                  )}
+                  {categoriaFiltro !== 'TODOS' && (
+                    <>
+                      {' '}en <span className="font-medium">{ETIQUETA_CATEGORIA[categoriaFiltro]}</span>
+                    </>
+                  )}
+                  .
+                </p>
+                {(busqueda.trim() || categoriaFiltro !== 'TODOS') && (
+                  <button
+                    onClick={() => {
+                      setBusqueda('');
+                      setCategoriaFiltro('TODOS');
+                    }}
+                    className="text-xs font-semibold text-navy hover:underline"
+                  >
+                    Limpiar filtros
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {productosFiltrados.map((p) => {
@@ -201,7 +253,7 @@ export default function ProductosPage() {
                         qty > 0 ? 'border-2 border-navy' : 'border-gray-200 hover:border-navy'
                       }`}
                     >
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 pr-6">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 pr-6">
                         {ETIQUETA_CATEGORIA[p.categoria]}
                       </span>
                       <span className="flex flex-col gap-0.5">
@@ -221,53 +273,63 @@ export default function ProductosPage() {
 
             {/* Gestion de catalogo: editar/crear precios requiere rol ADMIN en el
                backend; si un usuario de RECEPCION intenta usarla vera el 403 aqui
-               mismo (no hay deteccion de rol en el frontend todavia). */}
+               mismo (no hay deteccion de rol en el frontend todavia). Colapsado
+               por defecto para que no compita en peso visual con el cobro. */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <h2 className="text-sm font-bold text-navy mb-3">Catalogo de productos</h2>
-              <div className="space-y-1.5 mb-3">
-                {(productos ?? []).map((p) => (
-                  <div key={p.id} className="flex items-center justify-between gap-3 text-sm py-1 border-b border-gray-100 last:border-b-0">
-                    <span className={`min-w-0 truncate ${!p.activo ? 'text-gray-400 line-through' : ''}`}>
-                      {p.nombre} <span className="text-xs text-gray-400">({ETIQUETA_CATEGORIA[p.categoria]})</span>
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-gray-500">Q{p.precioQ}</span>
-                      <button onClick={() => alternarActivo(p)} className="text-xs font-medium text-navy hover:underline">
-                        {p.activo ? 'Desactivar' : 'Activar'}
-                      </button>
-                    </div>
+              <button
+                onClick={() => setCatalogoAbierto(!catalogoAbierto)}
+                className="text-sm font-bold text-navy hover:underline"
+              >
+                {catalogoAbierto ? '− Ocultar catálogo de productos' : '+ Gestionar catálogo de productos'}
+              </button>
+              {catalogoAbierto && (
+                <div className="mt-3">
+                  <div className="space-y-1.5 mb-3">
+                    {(productos ?? []).map((p) => (
+                      <div key={p.id} className="flex items-center justify-between gap-3 text-sm py-1 border-b border-gray-100 last:border-b-0">
+                        <span className={`min-w-0 truncate ${!p.activo ? 'text-gray-400 line-through' : ''}`}>
+                          {p.nombre} <span className="text-xs text-gray-500">({ETIQUETA_CATEGORIA[p.categoria]})</span>
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-gray-500">Q{p.precioQ}</span>
+                          <button onClick={() => alternarActivo(p)} className="text-xs font-medium text-navy hover:underline">
+                            {p.activo ? 'Desactivar' : 'Activar'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              <div className="flex flex-wrap gap-2 items-end">
-                <input
-                  type="text"
-                  placeholder="Nombre"
-                  value={nuevo.nombre}
-                  onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
-                  className="min-h-10 flex-1 min-w-[140px] rounded-md border border-gray-400 px-2 text-sm"
-                />
-                <select
-                  value={nuevo.categoria}
-                  onChange={(e) => setNuevo({ ...nuevo, categoria: e.target.value as ProductoCategoria })}
-                  className="min-h-10 rounded-md border border-gray-400 px-2 text-sm bg-white"
-                >
-                  <option value={ProductoCategoria.TIENDA}>Tienda</option>
-                  <option value={ProductoCategoria.ACADEMIA}>Academia</option>
-                </select>
-                <input
-                  type="number"
-                  placeholder="Precio Q"
-                  value={nuevo.precioQ}
-                  onChange={(e) => setNuevo({ ...nuevo, precioQ: e.target.value })}
-                  className="min-h-10 w-24 rounded-md border border-gray-400 px-2 text-sm"
-                />
-                <button onClick={agregarProducto} className="min-h-10 px-3 bg-navy text-white rounded-md text-sm font-semibold">
-                  Agregar
-                </button>
-              </div>
-              {errorNuevo && <p className="text-xs text-red-600 mt-1.5">{errorNuevo}</p>}
+                  <div className="flex flex-wrap gap-2 items-end">
+                    <input
+                      type="text"
+                      placeholder="Nombre"
+                      value={nuevo.nombre}
+                      onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
+                      className="min-h-10 flex-1 min-w-[140px] rounded-md border border-gray-400 px-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-navy"
+                    />
+                    <select
+                      value={nuevo.categoria}
+                      onChange={(e) => setNuevo({ ...nuevo, categoria: e.target.value as ProductoCategoria })}
+                      className="min-h-10 rounded-md border border-gray-400 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy"
+                    >
+                      <option value={ProductoCategoria.TIENDA}>Tienda</option>
+                      <option value={ProductoCategoria.ACADEMIA}>Academia</option>
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Precio Q"
+                      value={nuevo.precioQ}
+                      onChange={(e) => setNuevo({ ...nuevo, precioQ: e.target.value })}
+                      className="min-h-10 w-24 rounded-md border border-gray-400 px-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-navy"
+                    />
+                    <button onClick={agregarProducto} className="min-h-10 px-3 bg-navy text-white rounded-md text-sm font-semibold">
+                      Agregar
+                    </button>
+                  </div>
+                  {errorNuevo && <p className="text-xs text-red-600 mt-1.5">{errorNuevo}</p>}
+                </div>
+              )}
             </div>
           </div>
 
@@ -295,14 +357,16 @@ export default function ProductosPage() {
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         onClick={() => cambiarCantidad(l.producto.id, -1)}
-                        className="min-h-9 min-w-9 rounded-md border border-gray-300 text-gray-600"
+                        aria-label={`Quitar una unidad de ${l.producto.nombre}`}
+                        className="min-h-11 min-w-11 rounded-md border border-gray-300 text-gray-600"
                       >
                         −
                       </button>
                       <span className="w-6 text-center text-sm font-semibold">{l.cantidad}</span>
                       <button
                         onClick={() => cambiarCantidad(l.producto.id, 1)}
-                        className="min-h-9 min-w-9 rounded-md border border-gray-300 text-gray-600"
+                        aria-label={`Agregar una unidad de ${l.producto.nombre}`}
+                        className="min-h-11 min-w-11 rounded-md border border-gray-300 text-gray-600"
                       >
                         +
                       </button>
@@ -330,7 +394,7 @@ export default function ProductosPage() {
                       type="text"
                       value={clienteNombre}
                       onChange={(e) => setClienteNombre(e.target.value)}
-                      className="mt-1 w-full min-h-10 rounded-md border border-gray-400 px-2 text-sm"
+                      className="mt-1 w-full min-h-10 rounded-md border border-gray-400 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
                     />
                   </label>
                   <label className="block text-xs font-medium text-gray-600">
@@ -339,7 +403,7 @@ export default function ProductosPage() {
                       type="tel"
                       value={clienteTelefono}
                       onChange={(e) => setClienteTelefono(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                      className="mt-1 w-full min-h-10 rounded-md border border-gray-400 px-2 text-sm"
+                      className="mt-1 w-full min-h-10 rounded-md border border-gray-400 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
                     />
                   </label>
                 </div>
@@ -371,7 +435,7 @@ export default function ProductosPage() {
                     inputMode="numeric"
                     value={codigoAutorizacion}
                     onChange={(e) => setCodigoAutorizacion(e.target.value.replace(/\D/g, '').slice(0, 12))}
-                    className="mt-1 w-full min-h-10 rounded-md border border-gray-400 px-2 text-sm"
+                    className="mt-1 w-full min-h-10 rounded-md border border-gray-400 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
                   />
                 </label>
               ) : (
@@ -384,8 +448,11 @@ export default function ProductosPage() {
                         inputMode="decimal"
                         placeholder="Q0.00"
                         value={recibido}
-                        onChange={(e) => setRecibido(e.target.value)}
-                        className="mt-1 w-full min-h-10 rounded-md border border-gray-400 px-2 text-sm"
+                        onChange={(e) => {
+                          setRecibido(e.target.value);
+                          setRecibidoEsExacto(false);
+                        }}
+                        className="mt-1 w-full min-h-10 rounded-md border border-gray-400 px-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-navy"
                       />
                     </label>
                     <div className="text-right">
@@ -397,7 +464,10 @@ export default function ProductosPage() {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <button
-                      onClick={() => setRecibido(String(totalQ))}
+                      onClick={() => {
+                        setRecibido(String(totalQ));
+                        setRecibidoEsExacto(true);
+                      }}
                       className="min-h-8 px-3 rounded-full border border-gray-300 text-xs font-semibold text-navy hover:border-navy"
                     >
                       Exacto
@@ -405,7 +475,10 @@ export default function ProductosPage() {
                     {BILLETES_Q.filter((b) => b > totalQ).map((b) => (
                       <button
                         key={b}
-                        onClick={() => setRecibido(String(b))}
+                        onClick={() => {
+                          setRecibido(String(b));
+                          setRecibidoEsExacto(false);
+                        }}
                         className="min-h-8 px-3 rounded-full border border-gray-300 text-xs font-semibold text-navy hover:border-navy"
                       >
                         Q{b}
@@ -415,6 +488,8 @@ export default function ProductosPage() {
                 </div>
               )}
             </div>
+
+            {errorCobro && <p className="text-sm text-red-600">{errorCobro}</p>}
 
             <div className="flex justify-between font-bold text-navy text-base border-t border-gray-200 pt-3">
               <span>Total</span>
@@ -462,13 +537,22 @@ export default function ProductosPage() {
             }))}
             totalQ={recibo.montoTotalQ}
           />
-          <div className="print:hidden fixed bottom-20 lg:bottom-4 right-4 flex gap-2 z-50">
-            <button onClick={() => window.print()} className="min-h-11 px-4 bg-navy text-white rounded-md text-sm font-semibold shadow-lg">
-              Imprimir recibo
-            </button>
-            <button onClick={() => setRecibo(null)} className="min-h-11 px-4 bg-white border border-gray-300 rounded-md text-sm font-semibold shadow-lg">
-              Cerrar
-            </button>
+          <div className="print:hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full text-center space-y-2">
+              <p className="text-lg font-bold text-navy">Venta completada</p>
+              {recibo.numeroRecibo && <p className="text-xs text-gray-500">No. {recibo.numeroRecibo}</p>}
+              <p className="text-2xl font-bold text-navy">
+                Q{recibo.montoTotalQ.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+              </p>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => window.print()} className="flex-1 min-h-11 px-4 bg-navy text-white rounded-md text-sm font-semibold">
+                  Imprimir recibo
+                </button>
+                <button onClick={() => setRecibo(null)} className="flex-1 min-h-11 px-4 bg-white border border-gray-300 rounded-md text-sm font-semibold">
+                  Cerrar
+                </button>
+              </div>
+            </div>
           </div>
         </>
       )}

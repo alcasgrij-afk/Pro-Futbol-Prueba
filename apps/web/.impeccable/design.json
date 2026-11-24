@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-23T23:04:51Z",
+  "title": "Design System: Pro Futbol Antigua",
+  "extensions": {
+    "colorMeta": {
+      "navy": { "role": "secondary", "displayName": "Operate Navy", "canonical": "#00205B" },
+      "brand-navy": { "role": "secondary", "displayName": "Home Ground Navy", "canonical": "#0a3d7d" },
+      "gold": { "role": "primary", "displayName": "Open Gate Gold", "canonical": "#d8b32d" },
+      "gold-hover": { "role": "primary", "displayName": "Gold Hover", "canonical": "#d0a92a" },
+      "gold-deep": { "role": "primary", "displayName": "Gold Deep", "canonical": "#8f6c1c" },
+      "red": { "role": "alert", "displayName": "Brand Red", "canonical": "#E4032C" },
+      "action-red": { "role": "alert", "displayName": "Action Red", "canonical": "#dc2626" },
+      "action-red-hover": { "role": "alert", "displayName": "Action Red Hover", "canonical": "#b91c1c" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Admin page H1s (font-black) and public section headlines (font-bold)." },
+      "body": { "displayName": "Body", "purpose": "Default running text everywhere." },
+      "label": { "displayName": "Label", "purpose": "Admin eyebrow labels, uppercase tracking-widest." },
+      "mono": { "displayName": "Mono", "purpose": "Geist Mono, reserved via CSS var though not visibly used in UI copy." }
+    },
+    "shadows": [
+      { "name": "operate-sm", "value": "0 1px 2px rgba(0,0,0,0.05)", "purpose": "Tailwind shadow-sm, default admin card elevation." },
+      { "name": "operate-lg", "value": "0 10px 15px rgba(0,0,0,0.1)", "purpose": "Tailwind shadow-lg, admin primary buttons/print actions." },
+      { "name": "persuade-soft", "value": "0 18px 40px rgba(6,32,70,0.12)", "purpose": "Bespoke soft shadow on public marketing cards (landing/academia)." },
+      { "name": "persuade-lift", "value": "0 10px 30px rgba(15,60,130,0.08)", "purpose": "Lighter bespoke shadow variant, public marketing cards." }
+    ],
+    "motion": [
+      { "name": "reveal-fade-rise", "value": "opacity 0->1, translateY 18px->0, duration 0.5s, ease cubic-bezier(0.16,1,0.3,1)", "purpose": "components/Reveal.tsx: scroll-triggered fade+rise, once per element, bails to a plain div under prefers-reduced-motion. The only framer-motion usage in the app." },
+      { "name": "button-lift", "value": "translateY(-2px) on hover, transition-all", "purpose": "Gold primary CTA hover lift (public only)." },
+      { "name": "button-press", "value": "scale(0.98) on active", "purpose": "Admin button active-press feedback (active:scale-[0.98])." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button (Public)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Gold pill CTA used across SiteHeader, landing, academia, reservar.",
+      "html": "<button class=\"ds-btn-primary\">Reservar Ahora</button>",
+      "css": ".ds-btn-primary { background: #d8b32d; color: #0a3d7d; padding: 12px 24px; border-radius: 9999px; font-weight: 600; border: none; box-shadow: 0 10px 15px rgba(0,0,0,0.1); transition: background 0.2s, transform 0.2s; } .ds-btn-primary:hover { background: #d0a92a; transform: translateY(-2px); } .ds-btn-primary:focus-visible { outline: 2px solid #0a3d7d; outline-offset: 2px; }"
+    },
+    {
+      "name": "Primary Button (Admin)",
+      "kind": "button",
+      "refersTo": "button-admin-primary",
+      "description": "Solid navy action button used across admin forms and print actions.",
+      "html": "<button class=\"ds-btn-admin-primary\">Guardar</button>",
+      "css": ".ds-btn-admin-primary { background: #00205B; color: #ffffff; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 0.875rem; border: none; transition: background 0.2s, transform 0.2s; } .ds-btn-admin-primary:hover { background: rgba(0,32,91,0.8); } .ds-btn-admin-primary:active { transform: scale(0.98); } .ds-btn-admin-primary:focus-visible { outline: 2px solid #00205B; outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button (Admin)",
+      "kind": "button",
+      "refersTo": "button-admin-secondary",
+      "description": "Outline gray button, the most-repeated admin button pattern (modal Cancelar, filter bars).",
+      "html": "<button class=\"ds-btn-admin-secondary\">Cancelar</button>",
+      "css": ".ds-btn-admin-secondary { background: #ffffff; color: #4b5563; padding: 10px 12px; border-radius: 8px; font-size: 0.875rem; font-weight: 500; border: 1px solid #d1d5db; transition: background 0.2s; } .ds-btn-admin-secondary:hover { background: #f9fafb; }"
+    },
+    {
+      "name": "Destructive Button (Admin)",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Solid red action button, canonical example is academia's Desactivar.",
+      "html": "<button class=\"ds-btn-destructive\">Desactivar</button>",
+      "css": ".ds-btn-destructive { background: #dc2626; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; border: none; transition: background 0.2s, transform 0.2s; } .ds-btn-destructive:hover { background: #b91c1c; } .ds-btn-destructive:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "status-badge",
+      "description": "EstadoTorneoBadge pattern, one color pair per state; this example shows the 'En curso' (blue) state.",
+      "html": "<span class=\"ds-status-badge\">En curso</span>",
+      "css": ".ds-status-badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: #dbeafe; color: #1e40af; }"
+    },
+    {
+      "name": "Admin Input",
+      "kind": "input",
+      "refersTo": "input-admin",
+      "description": "Standard admin text input. Gap noted in DESIGN.md: most admin inputs lack an explicit focus ring; this snippet includes the recommended one from the login page.",
+      "html": "<input class=\"ds-input-admin\" type=\"text\" placeholder=\"Nombre\" />",
+      "css": ".ds-input-admin { background: #ffffff; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; font-size: 0.875rem; } .ds-input-admin:focus { outline: none; box-shadow: 0 0 0 2px #00205B; }"
+    },
+    {
+      "name": "Admin Card",
+      "kind": "card",
+      "refersTo": "card-admin",
+      "description": "The one card shell reused across every admin page (torneos, clientes, pagos, caja, academia).",
+      "html": "<div class=\"ds-card-admin\">Contenido</div>",
+      "css": ".ds-card-admin { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 24px; }"
+    },
+    {
+      "name": "Public Marketing Card",
+      "kind": "card",
+      "refersTo": "card-public-marketing",
+      "description": "Bespoke soft-shadow card used on landing/academia, distinct from admin's flat card shell.",
+      "html": "<div class=\"ds-card-public\">Contenido</div>",
+      "css": ".ds-card-public { background: #ffffff; border-radius: 22px; box-shadow: 0 18px 40px rgba(6,32,70,0.12); padding: 32px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Home Ground, Open Gate",
+    "overview": "Pro Futbol Antigua runs on home-turf confidence: navy structure, gold accents, the visual language of an established club that has been here a while and is proud of it. But the gate stays open — gold isn't just a CTA color, it's a welcome, and the softer shadows and generous rounded corners on the public pages exist so a family booking its first court feels invited in, not processed. That confidence-plus-invitation idea only governs the public, Persuade-mode surfaces (home, landing, academia, reservar's booking flow, the shared SiteHeader). The admin panel and the superadmin diagnostics panel are Operate-mode work surfaces — staff running caja, academia, torneos, reportes all day — and ambition there shows as precision and restraint, not narrative. This file documents three zones, not one undifferentiated palette, because that is what is actually shipped.",
+    "keyCharacteristics": [
+      "Two navies in active use, each scoped to its zone, never interchanged (see 'The Zone Rule' below).",
+      "Two reds in active use, same zone-scoping logic.",
+      "Elevation is a deliberate split: flat in Operate, soft-shadowed in Persuade — not an inconsistency to unify.",
+      "Icons are a deliberate split: Phosphor Icons in Admin/Superadmin, hand-written inline SVG in Public — not an inconsistency to unify.",
+      "Geist (Sans + Mono) is the only type family anywhere in the app."
+    ],
+    "rules": [
+      { "name": "The Zone Rule", "body": "navy and brand-navy are not interchangeable, and neither are red and action-red. Operate surfaces (admin, superadmin-adjacent utility pages) never use brand-navy; Persuade surfaces (home, landing, academia, SiteHeader) never use the stock navy token. Adding a UI element to a zone means reaching for that zone's color, not whichever navy looks closest.", "section": "colors" },
+      { "name": "The Flat-Operate Rule", "body": "Nothing in app/admin/** or app/superadmin/** gets a custom shadow or a bracket-value radius. If it needs to pop, reach for shadow-lg/shadow-xl, not a bespoke value — Operate's restraint is the brand signal there, not decoration.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use navy/action-red on Operate surfaces (admin, superadmin-adjacent public utility pages) and brand-navy/red on Persuade surfaces (home, landing, academia, SiteHeader) — per the Zone Rule.",
+      "Do use Phosphor Icons (@phosphor-icons/react) in admin/superadmin and hand-written inline SVG in public pages — this split is deliberate.",
+      "Do use rounded-full for any new status/pill badge, matching EstadoTorneoBadge.",
+      "Do give new admin inputs a focus:ring-2 focus:ring-navy treatment, matching the login page rather than the browser default most admin forms currently fall back to."
+    ],
+    "donts": [
+      "Don't invent a fourth navy or a third red. If an existing token doesn't fit, that's a signal to ask, not to pick a new arbitrary hex.",
+      "Don't add a custom shadow or bracket-value radius inside app/admin/** or app/superadmin/** — the Flat-Operate Rule holds there.",
+      "Don't apply navy/brand-navy/gold tokens to the superadmin panel — its dark slate/amber theme is intentionally its own system.",
+      "Don't promote reservar's chat-widget blues to a global token without an explicit decision to do so."
+    ]
+  }
+}
